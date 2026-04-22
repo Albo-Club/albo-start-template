@@ -375,6 +375,7 @@ export function AdminSecurityFindingsRoute(props: { search: SecurityFindingsSear
   return (
     <>
       <AdminSecurityFindingsTab
+        allFindings={allFindings}
         busyAction={busyAction}
         busyFindingKey={busyFindingKey}
         showAdvancedFilters={props.search.showAdvancedFilters}
@@ -409,7 +410,7 @@ export function AdminSecurityFindingsRoute(props: { search: SecurityFindingsSear
           updateFindingSearch({ findingStatus });
         }}
         onChangeFindingTypeFilter={(findingType) => {
-          updateFindingSearch({ findingType });
+          updateFindingSearch({ findingType, selectedFinding: undefined });
         }}
         onOpenFinding={(findingKey) => {
           updateFindingSearch({ selectedFinding: findingKey });

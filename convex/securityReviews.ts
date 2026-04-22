@@ -373,15 +373,27 @@ export const attestReviewTask = mutation({
       }
     }
 
+    const documentLabel = args.documentLabel?.trim() ?? '';
+    const documentUrl = args.documentUrl?.trim() ?? '';
+
     if (task.taskType === 'document_upload') {
-      const documentLabel = args.documentLabel?.trim() ?? '';
-      const documentUrl = args.documentUrl?.trim() ?? '';
       if (!documentLabel || !documentUrl) {
         throwConvexError(
           'VALIDATION',
           'Document-upload tasks require both a document label and URL.',
         );
       }
+      await upsertReviewTaskEvidenceLinkRecord(ctx, {
+        linkedByUserId: currentUser.authUserId,
+        reviewRunId: task.reviewRunId,
+        reviewTaskId: task._id,
+        role: 'primary',
+        sourceId: documentUrl,
+        sourceLabel: documentLabel,
+        sourceType: 'external_document',
+      });
+    }
+    if (task.taskType === 'follow_up' && documentLabel && documentUrl) {
       await upsertReviewTaskEvidenceLinkRecord(ctx, {
         linkedByUserId: currentUser.authUserId,
         reviewRunId: task.reviewRunId,
@@ -399,8 +411,8 @@ export const attestReviewTask = mutation({
       attestedAt: now,
       attestedByUserId: currentUser.authUserId,
       createdAt: now,
-      documentLabel: args.documentLabel?.trim() || undefined,
-      documentUrl: args.documentUrl?.trim() || undefined,
+      documentLabel: documentLabel || undefined,
+      documentUrl: documentUrl || undefined,
       documentVersion: args.documentVersion?.trim() || undefined,
       reviewRunId: task.reviewRunId,
       reviewTaskId: task._id,

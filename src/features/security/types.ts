@@ -334,6 +334,7 @@ export type AuditReadinessOverview = {
     status: 'failure' | 'success';
     targetEnvironment: 'development' | 'production' | 'test';
     verificationMethod: string;
+    workflowRunUrl: string | null;
   } | null;
   latestCheckpoint: {
     checkedAt: number;

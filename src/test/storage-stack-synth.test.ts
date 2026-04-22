@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { synthesizeStorageStackTemplate } from '../../scripts/generate-storage-iam-report';
 
 function getResourcesByType(
@@ -22,10 +22,26 @@ function getInlinePolicyResourcesForRole(
 }
 
 describe('storage stack synth', () => {
+  let devTemplate: {
+    Resources?: Record<string, { Properties?: Record<string, unknown>; Type?: string }>;
+  };
+  let prodTemplate: {
+    Resources?: Record<string, { Properties?: Record<string, unknown>; Type?: string }>;
+  };
+
+  beforeAll(() => {
+    devTemplate = synthesizeStorageStackTemplate({ stage: 'dev' }).template;
+    prodTemplate = synthesizeStorageStackTemplate({
+      envOverrides: {
+        AWS_STORAGE_ALERT_EMAIL: 'alerts@example.com',
+      },
+      stage: 'prod',
+    }).template;
+  }, 30_000);
+
   it('trusts only the dedicated broker and private worker runtime roles for storage capabilities', () => {
-    const { template } = synthesizeStorageStackTemplate({ stage: 'dev' });
     const roleMap = new Map(
-      getResourcesByType(template, 'AWS::IAM::Role').map(([, resource]) => [
+      getResourcesByType(devTemplate, 'AWS::IAM::Role').map(([, resource]) => [
         String(resource.Properties?.RoleName ?? ''),
         resource,
       ]),
@@ -107,18 +123,17 @@ describe('storage stack synth', () => {
   });
 
   it('removes the public worker Function URL and secures broker ingress behind API Gateway', () => {
-    const { template } = synthesizeStorageStackTemplate({ stage: 'dev' });
-    const functionUrls = getResourcesByType(template, 'AWS::Lambda::Url');
-    const apis = getResourcesByType(template, 'AWS::ApiGateway::RestApi');
-    const iamUsers = getResourcesByType(template, 'AWS::IAM::User');
-    const accessKeys = getResourcesByType(template, 'AWS::IAM::AccessKey');
+    const functionUrls = getResourcesByType(devTemplate, 'AWS::Lambda::Url');
+    const apis = getResourcesByType(devTemplate, 'AWS::ApiGateway::RestApi');
+    const iamUsers = getResourcesByType(devTemplate, 'AWS::IAM::User');
+    const accessKeys = getResourcesByType(devTemplate, 'AWS::IAM::AccessKey');
     const roleMap = new Map(
-      getResourcesByType(template, 'AWS::IAM::Role').map(([, resource]) => [
+      getResourcesByType(devTemplate, 'AWS::IAM::Role').map(([, resource]) => [
         String(resource.Properties?.RoleName ?? ''),
         resource,
       ]),
     );
-    const methodResources = getResourcesByType(template, 'AWS::ApiGateway::Method');
+    const methodResources = getResourcesByType(devTemplate, 'AWS::ApiGateway::Method');
 
     expect(functionUrls).toHaveLength(0);
     expect(apis).toHaveLength(1);
@@ -154,7 +169,10 @@ describe('storage stack synth', () => {
       ],
     });
 
-    const edgePolicies = getInlinePolicyResourcesForRole(template, 'StorageBrokerEdgeInvokeRole');
+    const edgePolicies = getInlinePolicyResourcesForRole(
+      devTemplate,
+      'StorageBrokerEdgeInvokeRole',
+    );
     expect(JSON.stringify(edgePolicies)).toContain('/internal/storage/upload-target');
     expect(JSON.stringify(edgePolicies)).not.toContain('/internal/storage/promote');
 
@@ -169,18 +187,11 @@ describe('storage stack synth', () => {
   });
 
   it('includes SNS email alerting and quarantine stuck alarms in production', () => {
-    const { template } = synthesizeStorageStackTemplate({
-      envOverrides: {
-        AWS_STORAGE_ALERT_EMAIL: 'alerts@example.com',
-      },
-      stage: 'prod',
-    });
-
-    const topics = getResourcesByType(template, 'AWS::SNS::Topic');
-    const subscriptions = getResourcesByType(template, 'AWS::SNS::Subscription');
-    const alarms = getResourcesByType(template, 'AWS::CloudWatch::Alarm');
-    const rules = getResourcesByType(template, 'AWS::Events::Rule');
-    const monitorLambdas = getResourcesByType(template, 'AWS::Lambda::Function').filter(
+    const topics = getResourcesByType(prodTemplate, 'AWS::SNS::Topic');
+    const subscriptions = getResourcesByType(prodTemplate, 'AWS::SNS::Subscription');
+    const alarms = getResourcesByType(prodTemplate, 'AWS::CloudWatch::Alarm');
+    const rules = getResourcesByType(prodTemplate, 'AWS::Events::Rule');
+    const monitorLambdas = getResourcesByType(prodTemplate, 'AWS::Lambda::Function').filter(
       ([, resource]) => resource.Properties?.Handler === 'quarantine-stuck-monitor.handler',
     );
 

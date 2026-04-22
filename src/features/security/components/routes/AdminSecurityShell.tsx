@@ -27,21 +27,15 @@ function SecurityPageShell(props: { activeTab: SecurityTab; children: React.Reac
     | undefined;
   const queues = workspaceOverview?.queues;
 
-  const criticalTab = useMemo(() => {
-    if (queues?.blockedReviewTasks && queues.blockedReviewTasks > 0) {
-      return { tab: 'reviews' as const, count: queues.blockedReviewTasks };
-    }
-    if (queues?.undispositionedFindings && queues.undispositionedFindings > 0) {
-      return { tab: 'findings' as const, count: queues.undispositionedFindings };
-    }
-    if (
-      workspaceOverview?.vendorSummary?.overdueCount &&
-      workspaceOverview.vendorSummary.overdueCount > 0
-    ) {
-      return { tab: 'vendors' as const, count: workspaceOverview.vendorSummary.overdueCount };
-    }
-    return null;
-  }, [queues, workspaceOverview]);
+  const tabCounts = useMemo(
+    () => ({
+      controls: queues?.missingSupportControls,
+      findings: queues?.undispositionedFindings,
+      reviews: queues?.blockedReviewTasks,
+      vendors: queues?.pendingVendorReviews,
+    }),
+    [queues],
+  );
 
   return (
     <div className="space-y-6">
@@ -65,18 +59,21 @@ function SecurityPageShell(props: { activeTab: SecurityTab; children: React.Reac
         <TabsList className="w-full justify-start overflow-auto">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="policies">Policies</TabsTrigger>
-          <TabsTrigger value="controls">Controls</TabsTrigger>
+          <TabsTrigger value="controls">
+            Controls
+            <TabBadge count={tabCounts.controls} />
+          </TabsTrigger>
           <TabsTrigger value="vendors">
             Vendors
-            <TabBadge count={criticalTab?.tab === 'vendors' ? criticalTab.count : undefined} />
+            <TabBadge count={tabCounts.vendors} />
           </TabsTrigger>
           <TabsTrigger value="findings">
             Findings
-            <TabBadge count={criticalTab?.tab === 'findings' ? criticalTab.count : undefined} />
+            <TabBadge count={tabCounts.findings} />
           </TabsTrigger>
           <TabsTrigger value="reviews">
             Reviews
-            <TabBadge count={criticalTab?.tab === 'reviews' ? criticalTab.count : undefined} />
+            <TabBadge count={tabCounts.reviews} />
           </TabsTrigger>
           <TabsTrigger value="reports">Reports</TabsTrigger>
         </TabsList>

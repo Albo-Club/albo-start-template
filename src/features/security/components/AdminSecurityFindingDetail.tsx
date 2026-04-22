@@ -219,8 +219,9 @@ export function AdminSecurityFindingDetail(props: {
       <div className="space-y-6 p-4">
         <DetailSection title="Finding state">
           <dl className="grid gap-4 sm:grid-cols-2">
+            <DetailItem label="System status" value={formatFindingStatus(props.finding.status)} />
             <DetailItem
-              label="Disposition"
+              label="Review outcome"
               value={formatFindingDisposition(props.finding.disposition)}
             />
             <DetailItem label="Source" value={props.finding.sourceLabel} />

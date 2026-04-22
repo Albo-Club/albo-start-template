@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git check-ignore:*)",
+      "WebFetch(domain:www.better-auth.com)",
+      "WebFetch(domain:better-auth.com)",
+      "Bash(python3 -c \":*)",
+      "Bash(/tmp/ai_llm_summary.md:*)",
+      "Read(//tmp/**)",
+      "Bash(python3:*)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "Bash(find /Users/yeoman/Desktop/tanstack/tanstack-start-template -type f \\\\\\(-name buildChatRequestConfig* -o -name security-baseline.ts -o -name fileServeHttp.ts -o -name env.server.ts -o -name internal-service-auth.ts -o -name fileServing.ts \\\\\\))",
+      "Bash(git stash:*)",
+      "Bash(2)",
+      "Bash(xxd)",
+      "Bash(git checkout:*)"
+    ]
+  }
+}

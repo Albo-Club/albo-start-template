@@ -2,16 +2,18 @@ import { useMemo } from 'react';
 import { TableFilter, type TableFilterOption, TableSearch } from '~/components/data-table';
 import { Badge } from '~/components/ui/badge';
 import { Button } from '~/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '~/components/ui/card';
 import { Spinner } from '~/components/ui/spinner';
 import { AdminSecuritySummaryCard } from '~/features/security/components/AdminSecuritySummaryCard';
-import { HelpTip } from '~/features/security/components/HelpTip';
 import { AdminSecurityTabHeader } from '~/features/security/components/AdminSecurityTabHeader';
 import {
   formatFindingDisposition,
   formatFindingSeverity,
+  formatFindingStatus,
   formatFindingType,
   getFindingDispositionBadgeVariant,
   getFindingSeverityBadgeVariant,
+  getFindingStatusBadgeVariant,
 } from '~/features/security/formatters';
 import type { SecurityFindingListItem } from '~/features/security/types';
 
@@ -19,11 +21,11 @@ const DISPOSITION_OPTIONS: Array<
   TableFilterOption<'all' | SecurityFindingListItem['disposition']>
 > = [
   { label: 'All dispositions', value: 'all' },
-  { label: 'Pending review', value: 'pending_review' },
-  { label: 'Investigating', value: 'investigating' },
+  { label: 'Review pending', value: 'pending_review' },
+  { label: 'Under review', value: 'investigating' },
   { label: 'Accepted risk', value: 'accepted_risk' },
   { label: 'False positive', value: 'false_positive' },
-  { label: 'Resolved', value: 'resolved' },
+  { label: 'Review complete', value: 'resolved' },
 ];
 
 const SEVERITY_OPTIONS: Array<TableFilterOption<'all' | SecurityFindingListItem['severity']>> = [
@@ -42,19 +44,17 @@ const FOLLOW_UP_OPTIONS: Array<
   { label: 'Overdue follow-up', value: 'overdue_follow_up' },
 ];
 
-const FINDING_TYPE_OPTIONS: Array<
-  TableFilterOption<'all' | SecurityFindingListItem['findingType']>
-> = [
-  { label: 'All finding types', value: 'all' },
-  { label: 'Archive health', value: 'audit_archive_health' },
-  { label: 'Request context gaps', value: 'audit_request_context_gaps' },
-  { label: 'Audit integrity', value: 'audit_integrity_failures' },
-  { label: 'Scan quarantines', value: 'document_scan_quarantines' },
-  { label: 'Scan rejections', value: 'document_scan_rejections' },
-  { label: 'Release validation', value: 'release_security_validation' },
-];
+type FindingTypeFilterValue = 'all' | SecurityFindingListItem['findingType'];
+type TrackedFindingCoverageItem = {
+  findingType: SecurityFindingListItem['findingType'];
+  label: string;
+  openCount: number;
+  severity: SecurityFindingListItem['severity'];
+  status: SecurityFindingListItem['status'];
+};
 
 export function AdminSecurityFindingsTab(props: {
+  allFindings: SecurityFindingListItem[] | undefined;
   busyAction: string | null;
   busyFindingKey: string | null;
   showAdvancedFilters: boolean;
@@ -109,6 +109,52 @@ export function AdminSecurityFindingsTab(props: {
       ].filter(Boolean).length,
     [props.findingSeverityFilter, props.findingFollowUpFilter, props.findingTypeFilter],
   );
+  const trackedFindings = useMemo<TrackedFindingCoverageItem[]>(() => {
+    if (!props.allFindings) {
+      return [];
+    }
+
+    const trackedByType = props.allFindings.reduce<
+      Map<SecurityFindingListItem['findingType'], TrackedFindingCoverageItem>
+    >((accumulator, finding) => {
+      const existing = accumulator.get(finding.findingType);
+      const nextItem = {
+        findingType: finding.findingType,
+        label: formatFindingType(finding.findingType),
+        openCount: finding.status === 'open' ? 1 : 0,
+        severity: finding.severity,
+        status: finding.status,
+      };
+
+      if (!existing) {
+        accumulator.set(finding.findingType, nextItem);
+        return accumulator;
+      }
+
+      if (existing.status === 'resolved' && finding.status === 'open') {
+        accumulator.set(finding.findingType, nextItem);
+      }
+      return accumulator;
+    }, new Map());
+
+    return [...trackedByType.values()].sort((left, right) => {
+      if (left.status !== right.status) {
+        return left.status === 'open' ? -1 : 1;
+      }
+
+      return left.label.localeCompare(right.label);
+    });
+  }, [props.allFindings]);
+  const findingTypeOptions = useMemo<Array<TableFilterOption<FindingTypeFilterValue>>>(
+    () => [
+      { label: 'All finding types', value: 'all' },
+      ...trackedFindings.map((finding) => ({
+        label: finding.label,
+        value: finding.findingType,
+      })),
+    ],
+    [trackedFindings],
+  );
 
   return (
     <>
@@ -139,13 +185,8 @@ export function AdminSecurityFindingsTab(props: {
           }
         />
         <AdminSecuritySummaryCard
-          title={
-            <>
-              Pending disposition
-              <HelpTip term="disposition" />
-            </>
-          }
-          description="Findings without a recorded decision."
+          title={'Review pending'}
+          description="Findings that still need a reviewer outcome recorded."
           value={renderCardStatValue(props.summary.reviewPendingCount)}
           footer={
             props.summary.reviewPendingCount !== undefined
@@ -164,6 +205,64 @@ export function AdminSecurityFindingsTab(props: {
           }
         />
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>What the system tracks</CardTitle>
+          <CardDescription>
+            This workspace shows the monitored finding categories the system currently tracks. It
+            does not represent a complete inventory of all security risks.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {props.allFindings === undefined ? (
+            <div className="flex items-center gap-2 py-1 text-sm text-muted-foreground">
+              <Spinner className="size-4" />
+              <span>Loading tracked findings...</span>
+            </div>
+          ) : trackedFindings.length ? (
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {trackedFindings.map((finding) => {
+                const isFiltered = props.findingTypeFilter === finding.findingType;
+                return (
+                  <button
+                    key={finding.findingType}
+                    type="button"
+                    className="hover:bg-accent/40 flex w-full flex-col gap-3 rounded-lg border p-4 text-left transition-colors"
+                    onClick={() => {
+                      props.onChangeFindingTypeFilter(finding.findingType);
+                    }}
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-medium">{finding.label}</p>
+                      <Badge variant={getFindingStatusBadgeVariant(finding.status)}>
+                        {formatFindingStatus(finding.status)}
+                      </Badge>
+                      {finding.status === 'open' ? (
+                        <Badge variant={getFindingSeverityBadgeVariant(finding.severity)}>
+                          {formatFindingSeverity(finding.severity)}
+                        </Badge>
+                      ) : null}
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {finding.status === 'open'
+                        ? `${finding.openCount} open issue in this category`
+                        : 'No open issue in this category'}
+                    </p>
+                    <div className="text-xs font-medium text-muted-foreground">
+                      {isFiltered ? 'Currently filtered' : 'Filter findings'}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              No tracked finding categories are available yet.
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         <div className="inline-flex flex-col gap-3 xl:flex-row xl:items-center xl:gap-2">
@@ -194,9 +293,9 @@ export function AdminSecurityFindingsTab(props: {
                   className="shrink-0"
                   ariaLabel="Filter findings by follow-up"
                 />
-                <TableFilter<'all' | SecurityFindingListItem['findingType']>
+                <TableFilter<FindingTypeFilterValue>
                   value={props.findingTypeFilter}
-                  options={FINDING_TYPE_OPTIONS}
+                  options={findingTypeOptions}
                   onValueChange={props.onChangeFindingTypeFilter}
                   className="shrink-0"
                   ariaLabel="Filter findings by type"

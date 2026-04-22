@@ -165,9 +165,20 @@ export function formatFindingSeverity(severity: SecurityFindingListItem['severit
 export function formatFindingStatus(status: SecurityFindingListItem['status']) {
   switch (status) {
     case 'open':
-      return 'Open';
+      return 'Issue active';
     case 'resolved':
-      return 'Resolved';
+      return 'Issue cleared';
+  }
+}
+
+export function getFindingStatusBadgeVariant(
+  status: SecurityFindingListItem['status'],
+): 'default' | 'destructive' | 'outline' | 'secondary' {
+  switch (status) {
+    case 'resolved':
+      return 'secondary';
+    case 'open':
+      return 'destructive';
   }
 }
 
@@ -629,11 +640,11 @@ export function formatFindingDisposition(disposition: SecurityFindingListItem['d
     case 'false_positive':
       return 'False positive';
     case 'investigating':
-      return 'Investigating';
+      return 'Under review';
     case 'pending_review':
-      return 'Pending review';
+      return 'Review pending';
     case 'resolved':
-      return 'Resolved';
+      return 'Review complete';
   }
 }
 

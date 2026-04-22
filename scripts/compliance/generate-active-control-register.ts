@@ -2195,7 +2195,7 @@ const ACTIVE_CONTROL_BLUEPRINTS: ReadonlyArray<{
     nist80053Id: 'IR-4',
     internalControlId: 'CTRL-IR-004',
     implementationSummary:
-      'This control addresses incident handling for the hosted service and connected customer environment. The platform currently provides investigation-supporting audit trails, evidence exports, retained review artifacts, a documented provider incident-response policy, and an annual review workflow that can link the current provider incident-response procedure, but the current procedure artifact and customer-side response workflows must still be supplied outside these repo-backed product artifacts.',
+      'This control addresses incident handling for the hosted service and connected customer environment. The platform currently provides investigation-supporting audit trails, evidence exports, retained review artifacts, a documented provider incident-response policy that governs the incident-response procedure set, and an annual policy review workflow, but customer-side response workflows must still be supplied outside these repo-backed product artifacts.',
     coverage: 'partial' as const,
     responsibility: 'shared-responsibility' as const,
     priority: 'p0' as const,
@@ -2271,23 +2271,23 @@ const ACTIVE_CONTROL_BLUEPRINTS: ReadonlyArray<{
       },
       {
         itemId: 'provider-incident-response-procedure',
-        label: 'Provider incident response procedure can be linked and reviewed',
+        label: 'Provider incident response policy and procedure set are reviewed annually',
         description:
-          'The provider should retain and annually review the current incident response procedure covering triage, escalation, containment, customer coordination, and post-incident follow-up.',
-        verificationMethod: 'Procedure review',
+          'The provider should annually review the Incident Response Policy and attest that the incident-response procedure set it defines remains current for triage, escalation, containment, customer coordination, and post-incident follow-up.',
+        verificationMethod: 'Policy review',
         required: true,
         suggestedEvidenceTypes: ['file', 'note'] as ChecklistEvidenceType[],
         seed: seededChecklist(
           'done',
-          'The workspace includes a documented provider incident-response policy generated from the security policy document registry and an annual review task linking the current procedure into the site admin security review cycle.',
+          'The workspace includes a documented provider incident-response policy generated from the security policy document registry and an annual policy review task that covers the procedure set defined by that policy.',
           [
             seededEvidence(
               'Incident response policy',
-              'Provider policy defining incident-response planning, training, testing, and handling expectations for the hosted service environment, generated from the security policy document registry.',
+              'Provider policy defining incident-response planning, training, testing, handling expectations, and the associated procedure set for the hosted service environment, generated from the security policy document registry.',
             ),
             seededEvidence(
               'Annual policy review task',
-              'The Incident Response Policy is reviewed and attested as current during the annual site admin security review cycle, covering the incident-response procedure it describes.',
+              'The Incident Response Policy is reviewed and attested as current during the annual site admin security review cycle, including the incident-response procedure set it defines.',
             ),
           ],
           'Security Incident Response',

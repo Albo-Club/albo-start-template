@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import readXlsxFile from 'read-excel-file/node';
+import { readSheet } from 'read-excel-file/node';
 
 type Soc2TrustServiceCategory =
   | 'availability'
@@ -125,9 +125,7 @@ function normalizeNistControlId(value: string): string | null {
 }
 
 async function main() {
-  const rows = await readXlsxFile(SOURCE_XLSX_PATH, {
-    sheet: 'NIST 800-53 as Points of Focus',
-  });
+  const rows = await readSheet(SOURCE_XLSX_PATH, 'NIST 800-53 as Points of Focus');
 
   let currentCriterionId: string | null = null;
   const criteria = new Map<string, Soc2Criterion>();

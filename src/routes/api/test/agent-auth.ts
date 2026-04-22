@@ -12,7 +12,7 @@ const agentAuthSchema = z.object({
   redirectTo: z.string().optional(),
 });
 
-export const Route = createFileRoute('/api/test/agent-auth' as never)({
+export const Route = createFileRoute('/api/test/agent-auth')({
   server: {
     handlers: {
       POST: async ({ request }) => {

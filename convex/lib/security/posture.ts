@@ -12,6 +12,26 @@ import { fetchAllBetterAuthPasskeys, fetchAllBetterAuthUsers } from '../betterAu
 import { normalizeSecurityScope } from './core';
 import { _getSecurityMetricsSnapshot, countQueryResults } from './operations_core';
 
+function getBackupVerificationWorkflowRunUrl(artifactContentJson: string | null) {
+  if (!artifactContentJson) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(artifactContentJson) as {
+      workflow?: {
+        runUrl?: unknown;
+      };
+    };
+
+    return typeof parsed.workflow?.runUrl === 'string' && parsed.workflow.runUrl.length > 0
+      ? parsed.workflow.runUrl
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 function getArchiveRuntimeFlags() {
   const backendMode = getFileStorageBackendMode();
   const required = isS3BackedFileStorageBackendMode(backendMode);
@@ -272,6 +292,9 @@ export async function getAuditReadinessSnapshotHandler(ctx: QueryCtx) {
           status: latestBackupDrill.status,
           targetEnvironment: latestBackupDrill.targetEnvironment,
           verificationMethod: latestBackupDrill.verificationMethod,
+          workflowRunUrl: getBackupVerificationWorkflowRunUrl(
+            latestBackupDrill.artifactContentJson,
+          ),
         }
       : null,
     latestCheckpoint: latestCheckpoint

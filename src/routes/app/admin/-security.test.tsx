@@ -92,7 +92,34 @@ vi.mock('~/components/data-table', () => ({
     ) : (
       <p>{emptyMessage}</p>
     ),
-  TableFilter: () => <div />,
+  TableFilter: ({
+    ariaLabel,
+    onValueChange,
+    options,
+    value,
+  }: {
+    ariaLabel?: string;
+    onValueChange: (value: string) => void;
+    options: Array<{ label: string; value: string }>;
+    value: string;
+  }) => (
+    <label>
+      <span className="sr-only">{ariaLabel ?? 'Filter'}</span>
+      <select
+        aria-label={ariaLabel ?? 'Filter'}
+        value={value}
+        onChange={(event) => {
+          onValueChange(event.target.value);
+        }}
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  ),
   TableSearch: () => <div />,
 }));
 
@@ -145,6 +172,7 @@ type SearchState = {
   findingStatus?: 'all' | 'open' | 'resolved';
   findingType?:
     | 'all'
+    | 'audit_archive_health'
     | 'audit_request_context_gaps'
     | 'audit_integrity_failures'
     | 'document_scan_quarantines'
@@ -276,6 +304,7 @@ function buildAuditReadiness(overrides?: Partial<Record<string, unknown>>) {
       status: 'success',
       targetEnvironment: 'test',
       verificationMethod: 'checksum-compare',
+      workflowRunUrl: 'https://github.com/example/repo/actions/runs/123',
     },
     latestCheckpoint: {
       checkedAt: Date.parse('2026-03-18T09:20:00.000Z'),
@@ -910,6 +939,7 @@ function mockSecurityQueries(args: {
   policies?: unknown[];
   policyDetail?: unknown;
   reviewDetail?: unknown;
+  reviewDetailsById?: Record<string, unknown>;
   summary?: unknown;
   triggeredReviewRuns?: unknown[];
   vendorWorkspaces?: unknown[];
@@ -946,14 +976,28 @@ function mockSecurityQueries(args: {
         return buildFindingsBoard(args);
       case 'securityPosture:getSecurityReportsBoard':
         return buildReportsBoard(args);
+      case 'securityPosture:getAuditReadinessOverview':
+        return args.auditReadiness ?? buildAuditReadiness();
       case 'securityReports:getEvidenceReportDetail':
         return args.reportDetail ?? null;
       case 'securityReports:listSecurityVendors':
         return args.vendorWorkspaces ?? [buildVendorWorkspace()];
       case 'securityReviews:getCurrentAnnualReviewRun':
         return args.currentAnnualRun ?? null;
-      case 'securityReviews:getReviewRunDetail':
+      case 'securityReviews:getReviewRunDetail': {
+        const requestedReviewRunId =
+          queryArgs && typeof queryArgs === 'object' && 'reviewRunId' in queryArgs
+            ? queryArgs.reviewRunId
+            : undefined;
+        if (
+          typeof requestedReviewRunId === 'string' &&
+          args.reviewDetailsById &&
+          requestedReviewRunId in args.reviewDetailsById
+        ) {
+          return args.reviewDetailsById[requestedReviewRunId] ?? null;
+        }
         return args.reviewDetail ?? null;
+      }
       case 'securityReviews:listTriggeredReviewRuns':
         return args.triggeredReviewRuns ?? [];
       default:
@@ -1019,6 +1063,47 @@ describe('Admin security route', () => {
       },
     });
     useLocationMock.mockReturnValue({ pathname: '/app/admin/security/reports' });
+  });
+
+  it('shows count badges on security tabs when queue counts are present', () => {
+    useSearchMock.mockReturnValue(defaultSearch);
+    useLocationMock.mockReturnValue({ pathname: '/app/admin/security' });
+    mockSecurityQueries({
+      controls: [
+        buildControl({
+          internalControlId: 'ac-1',
+          support: 'missing',
+          title: 'Access review control',
+        }),
+        buildControl({
+          internalControlId: 'ac-2',
+          support: 'complete',
+          title: 'Logging control',
+        }),
+      ],
+      currentAnnualRun: buildReviewRunSummary({
+        taskCounts: { blocked: 3, completed: 1, exception: 0, ready: 0, total: 4 },
+      }),
+      findings: [
+        buildSecurityFinding({ findingKey: 'finding-1', disposition: 'pending_review' }),
+        buildSecurityFinding({ findingKey: 'finding-2', disposition: 'resolved' }),
+      ],
+      vendorWorkspaces: [
+        buildVendorWorkspace({ reviewStatus: 'overdue', vendor: 'sentry' }),
+        buildVendorWorkspace({ reviewStatus: 'current', vendor: 'cloudflare' }),
+      ],
+    });
+    mockSecurityActions({
+      'securityReviews:refreshReviewRunAutomation': vi.fn().mockResolvedValue(null),
+    });
+    mockSecurityMutations({});
+
+    renderRoute();
+
+    expect(screen.getByRole('tab', { name: /controls/i })).toHaveTextContent('1');
+    expect(screen.getByRole('tab', { name: /vendors/i })).toHaveTextContent('1');
+    expect(screen.getByRole('tab', { name: /findings/i })).toHaveTextContent('1');
+    expect(screen.getByRole('tab', { name: /reviews/i })).toHaveTextContent('3');
   });
 
   it('generates evidence reports and submits trimmed review notes', async () => {
@@ -1475,6 +1560,105 @@ describe('Admin security route', () => {
     );
   });
 
+  it('renders tracked finding coverage from the live findings list', () => {
+    useSearchMock.mockReturnValue({
+      ...defaultSearch,
+      tab: 'findings',
+    });
+
+    mockSecurityQueries({
+      auditReadiness: buildAuditReadiness(),
+      controls: [buildControl()],
+      evidenceReports: [buildEvidenceReport()],
+      findings: [
+        buildSecurityFinding(),
+        buildSecurityFinding({
+          description: 'Release validation needs follow-up.',
+          findingKey: 'release_security_validation',
+          findingType: 'release_security_validation',
+          severity: 'warning',
+          sourceLabel: 'Release validation evidence',
+          sourceRecordId: 'release-evidence-1',
+          sourceType: 'security_control_evidence',
+          status: 'resolved',
+          title: 'Release security validation monitoring',
+        }),
+      ],
+    });
+    mockSecurityActions({});
+    mockSecurityMutations({});
+
+    renderRoute();
+
+    expect(
+      screen.getByText(
+        'This workspace shows the monitored finding categories the system currently tracks. It does not represent a complete inventory of all security risks.',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /audit integrity.*issue active.*critical/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /release validation.*issue cleared/i }),
+    ).toBeInTheDocument();
+  });
+
+  it('keeps tracked finding filters aligned with the live findings list', async () => {
+    const user = userEvent.setup();
+
+    useSearchMock.mockReturnValue({
+      ...defaultSearch,
+      showAdvancedFilters: true,
+      tab: 'findings',
+    });
+
+    mockSecurityQueries({
+      auditReadiness: buildAuditReadiness(),
+      controls: [buildControl()],
+      evidenceReports: [buildEvidenceReport()],
+      findings: [
+        buildSecurityFinding(),
+        buildSecurityFinding({
+          description: 'Release validation needs follow-up.',
+          findingKey: 'release_security_validation',
+          findingType: 'release_security_validation',
+          severity: 'warning',
+          sourceLabel: 'Release validation evidence',
+          sourceRecordId: 'release-evidence-1',
+          sourceType: 'security_control_evidence',
+          status: 'resolved',
+          title: 'Release security validation monitoring',
+        }),
+      ],
+    });
+    mockSecurityActions({});
+    mockSecurityMutations({});
+
+    renderRoute();
+
+    const typeFilter = screen.getByRole('combobox', { name: /filter findings by type/i });
+    expect(
+      within(typeFilter).getByRole('option', { name: 'All finding types' }),
+    ).toBeInTheDocument();
+    expect(within(typeFilter).getByRole('option', { name: 'Audit integrity' })).toBeInTheDocument();
+    expect(
+      within(typeFilter).getByRole('option', { name: 'Release validation' }),
+    ).toBeInTheDocument();
+    expect(
+      within(typeFilter).queryByRole('option', { name: 'Request context gaps' }),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /release validation.*issue cleared/i }));
+
+    expect(navigateMock).toHaveBeenCalledWith({
+      search: expect.objectContaining({
+        findingType: 'release_security_validation',
+        selectedFinding: undefined,
+      }),
+      to: '/app/admin/security/findings',
+    });
+  });
+
   it('shows tracked follow-up state on retained findings', async () => {
     useSearchMock.mockReturnValue({
       ...defaultSearch,
@@ -1619,7 +1803,7 @@ describe('Admin security route', () => {
     });
 
     expect(screen.getByText('Annual Security Review 2026')).toBeInTheDocument();
-    expect(screen.getByText('Review Tasks')).toBeInTheDocument();
+    expect(screen.queryByText('Review Tasks')).not.toBeInTheDocument();
 
     // Use the inline "Attest" button for the attestation task
     await user.click(screen.getAllByRole('button', { name: 'Attest' })[0]!);
@@ -1643,6 +1827,15 @@ describe('Admin security route', () => {
       );
     });
 
+    const triggeredReviewsCard = screen
+      .getByText('Triggered Reviews')
+      .closest('[data-slot="card"]');
+    expect(triggeredReviewsCard).not.toBeNull();
+    await user.click(
+      within(triggeredReviewsCard as HTMLElement).getByRole('button', {
+        name: 'Create follow-up review',
+      }),
+    );
     await user.type(screen.getByPlaceholderText('Triggered review title'), 'Manual follow-up');
     await user.click(screen.getByRole('button', { name: /create run/i }));
 
@@ -1650,6 +1843,273 @@ describe('Admin security route', () => {
       expect(createTriggeredReviewRunMock).toHaveBeenCalledWith({
         title: 'Manual follow-up',
         triggerType: 'manual_follow_up',
+      });
+    });
+  });
+
+  it('shows blocked backup verification guidance and automated task disposition actions', async () => {
+    const user = userEvent.setup();
+    const backupBlockedTask = {
+      allowException: true,
+      controlLinks: [
+        {
+          controlTitle: 'Contingency Planning',
+          internalControlId: 'CTRL-CP-009',
+          itemId: 'restore-testing-recorded',
+          itemLabel: 'Restore testing recorded',
+          nist80053Id: 'CP-9',
+        },
+      ],
+      description:
+        'Link the latest backup verification and restore evidence into the annual review.',
+      evidenceLinks: [],
+      freshnessWindowDays: 90,
+      id: 'review-task-backup',
+      latestAttestation: null,
+      latestNote: 'No backup verification evidence is currently recorded.',
+      policy: null,
+      policyControls: [],
+      required: true,
+      satisfiedAt: null,
+      satisfiedThroughAt: null,
+      status: 'blocked',
+      taskType: 'automated_check',
+      templateKey: 'annual:auto:backup-verification',
+      title: 'Backup verification evidence is current',
+    };
+    const backupCompletedTask = {
+      ...backupBlockedTask,
+      latestNote: null,
+      satisfiedAt: Date.parse('2026-03-18T08:00:00.000Z'),
+      satisfiedThroughAt: Date.parse('2026-06-16T08:00:00.000Z'),
+      status: 'completed',
+    };
+    const refreshReviewRunAutomationMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        buildReviewRunDetail({
+          tasks: [...buildReviewRunDetail().tasks, backupBlockedTask],
+        }),
+      )
+      .mockResolvedValueOnce(
+        buildReviewRunDetail({
+          tasks: [...buildReviewRunDetail().tasks, backupCompletedTask],
+        }),
+      );
+    const openTriggeredFollowUpMock = vi.fn().mockResolvedValue(
+      buildReviewRunSummary({
+        id: 'triggered-review-backup',
+        kind: 'triggered',
+        title: 'Backup verification follow-up',
+      }),
+    );
+    const setReviewTaskExceptionMock = vi.fn().mockResolvedValue(undefined);
+
+    useSearchMock.mockReturnValue({
+      ...defaultSearch,
+      tab: 'reviews',
+    });
+    mockSecurityQueries({
+      auditReadiness: buildAuditReadiness({
+        latestBackupDrill: null,
+      }),
+      currentAnnualRun: buildReviewRunSummary({
+        taskCounts: {
+          blocked: 1,
+          completed: 2,
+          exception: 0,
+          ready: 2,
+          total: 5,
+        },
+      }),
+      reviewDetail: buildReviewRunDetail({
+        tasks: [...buildReviewRunDetail().tasks, backupBlockedTask],
+      }),
+      triggeredReviewRuns: [],
+    });
+    mockSecurityActions({
+      'securityReviews:refreshReviewRunAutomation': refreshReviewRunAutomationMock,
+    });
+    mockSecurityMutations({
+      'securityReviews:openTriggeredFollowUp': openTriggeredFollowUpMock,
+      'securityReviews:setReviewTaskException': setReviewTaskExceptionMock,
+    });
+
+    renderRoute();
+
+    await waitFor(() => {
+      expect(refreshReviewRunAutomationMock).toHaveBeenCalledWith({
+        reviewRunId: 'review-run-1',
+      });
+    });
+
+    expect(screen.getByText('1 required task is blocking finalization')).toBeInTheDocument();
+    const backupTaskCard = document.getElementById('review-task-review-task-backup');
+    expect(backupTaskCard).not.toBeNull();
+    expect(
+      within(backupTaskCard as HTMLElement).getByRole('button', { name: 'View' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Open workflow run' })).not.toBeInTheDocument();
+
+    await user.click(within(backupTaskCard as HTMLElement).getByRole('button', { name: 'View' }));
+
+    expect(screen.getByText('Current blocker')).toBeInTheDocument();
+    expect(
+      screen.getByText('Blocked: no backup verification record was found.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('Weekly GitHub backup workflow and retained restore drill record'),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open restore drill details' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Open restore drill details' }));
+    expect(navigateMock).toHaveBeenCalledWith({
+      search: {},
+      to: '/app/admin/security/reports',
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Create follow-up review' }));
+    await waitFor(() => {
+      expect(openTriggeredFollowUpMock).toHaveBeenCalledWith({
+        note: undefined,
+        reviewTaskId: 'review-task-backup',
+      });
+    });
+
+    const markExceptionButton = screen.getByRole('button', {
+      name: 'Mark exception',
+    });
+    expect(markExceptionButton).toBeDisabled();
+    await user.type(
+      screen.getByPlaceholderText(
+        'Add context for a follow-up review or explain why this task needs an exception.',
+      ),
+      'Waiting on next weekly backup verification run.',
+    );
+    expect(markExceptionButton).toBeEnabled();
+    await user.click(markExceptionButton);
+    await waitFor(() => {
+      expect(setReviewTaskExceptionMock).toHaveBeenCalledWith({
+        note: 'Waiting on next weekly backup verification run.',
+        reviewTaskId: 'review-task-backup',
+      });
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Recheck now' }));
+    await waitFor(() => {
+      expect(refreshReviewRunAutomationMock).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it('opens triggered reviews in the detail sheet and finalizes them after completion', async () => {
+    const user = userEvent.setup();
+    const attestReviewTaskMock = vi.fn().mockResolvedValue(undefined);
+
+    finalizeReviewRunServerFnMock.mockResolvedValue(
+      buildReviewRunDetail({
+        finalizedAt: Date.parse('2026-03-20T08:00:00.000Z'),
+        id: 'triggered-review-1',
+        kind: 'triggered',
+        status: 'completed',
+        tasks: [
+          {
+            ...buildReviewRunDetail().tasks[0],
+            id: 'triggered-task-1',
+            status: 'completed',
+            taskType: 'follow_up',
+            title: 'Manual follow-up',
+          },
+        ],
+        title: 'Manual follow-up',
+        triggerType: 'manual_follow_up',
+        year: null,
+      }),
+    );
+
+    useSearchMock.mockReturnValue({
+      ...defaultSearch,
+      selectedReviewRun: 'triggered-review-1',
+      tab: 'reviews',
+    });
+    mockSecurityQueries({
+      currentAnnualRun: buildReviewRunSummary(),
+      reviewDetailsById: {
+        'review-run-1': buildReviewRunDetail(),
+        'triggered-review-1': buildReviewRunDetail({
+          id: 'triggered-review-1',
+          kind: 'triggered',
+          status: 'ready',
+          tasks: [
+            {
+              ...buildReviewRunDetail().tasks[0],
+              id: 'triggered-task-1',
+              status: 'ready',
+              taskType: 'follow_up',
+              title: 'Manual follow-up',
+            },
+          ],
+          title: 'Manual follow-up',
+          triggerType: 'manual_follow_up',
+          year: null,
+        }),
+      },
+      triggeredReviewRuns: [
+        buildReviewRunSummary({
+          id: 'triggered-review-1',
+          kind: 'triggered',
+          status: 'ready',
+          taskCounts: {
+            blocked: 0,
+            completed: 0,
+            exception: 0,
+            ready: 1,
+            total: 1,
+          },
+          title: 'Manual follow-up',
+          triggerType: 'manual_follow_up',
+          year: null,
+        }),
+      ],
+    });
+    mockSecurityActions({
+      'securityReviews:refreshReviewRunAutomation': vi
+        .fn()
+        .mockResolvedValue(buildReviewRunDetail()),
+    });
+    mockSecurityMutations({
+      'securityReviews:attestReviewTask': attestReviewTaskMock,
+    });
+
+    renderRoute();
+
+    expect(screen.getByText('Triggered review lifecycle')).toBeInTheDocument();
+    await user.type(
+      screen.getByPlaceholderText(
+        'Describe the follow-up work, the evidence reviewed, or why this run needs an exception.',
+      ),
+      'Validated the remediation plan.',
+    );
+    await user.click(screen.getByRole('button', { name: 'Mark complete' }));
+
+    await waitFor(() => {
+      expect(attestReviewTaskMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          note: 'Validated the remediation plan.',
+          reviewTaskId: 'triggered-task-1',
+        }),
+      );
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Finalize review' })).toBeEnabled();
+    });
+    await user.click(screen.getByRole('button', { name: 'Finalize review' }));
+
+    await waitFor(() => {
+      expect(finalizeReviewRunServerFnMock).toHaveBeenCalledWith({
+        data: {
+          reviewRunId: 'triggered-review-1',
+        },
       });
     });
   });

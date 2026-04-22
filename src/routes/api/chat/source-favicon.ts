@@ -8,7 +8,7 @@ const sourceFaviconQuerySchema = z.object({
   hostname: z.string().trim().min(1),
 });
 
-export const Route = createFileRoute('/api/chat/source-favicon' as never)({
+export const Route = createFileRoute('/api/chat/source-favicon')({
   server: {
     handlers: {
       GET: async ({ request }) => {

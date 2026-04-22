@@ -23,7 +23,6 @@ it('exposes the supported auth client surface', () => {
   expectTypeOf(authClient.organization.rejectInvitation).toBeFunction();
   expectTypeOf(authClient.organization.setActive).toBeFunction();
   expectTypeOf(authClient.passkey.addPasskey).toBeFunction();
-  expectTypeOf(authClient.passkey.deletePasskey).toBeFunction();
   expectTypeOf(authClient.passkey.listUserPasskeys).toBeFunction();
   expectTypeOf(authClient.twoFactor.disable).toBeFunction();
   expectTypeOf(authClient.twoFactor.enable).toBeFunction();

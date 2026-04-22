@@ -1228,6 +1228,7 @@ const auditReadinessSnapshotValidator = v.object({
       status: v.union(v.literal('success'), v.literal('failure')),
       targetEnvironment: backupVerificationTargetEnvironmentValidator,
       verificationMethod: v.string(),
+      workflowRunUrl: v.union(v.string(), v.null()),
     }),
     v.null(),
   ),

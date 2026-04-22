@@ -197,9 +197,14 @@ export async function generateEvidenceReportHandler(
     requestContext: args.requestContext,
     session: currentUser.authSession,
   });
-  await ctx.runMutation(anyApi.securityOps.syncCurrentSecurityFindingsInternal, {
-    actorUserId: currentUser.authUserId,
-  });
+  // `refreshReviewRunAutomation` syncs once before its task loop; skipping here avoids racing
+  // `syncCurrentSecurityFindingsInternal` against `applyReviewTaskStateInternal` (which syncs via
+  // `recordSecurityControlEvidenceAuditEvent`) and cuts redundant OCC-prone back-to-back syncs.
+  if (!args.autoReview) {
+    await ctx.runMutation(anyApi.securityOps.syncCurrentSecurityFindingsInternal, {
+      actorUserId: currentUser.authUserId,
+    });
+  }
   const reportKind = args.reportKind ?? 'security_posture';
   const needsControlWorkspace =
     reportKind === 'security_posture' ||
@@ -515,7 +520,10 @@ export async function refreshReviewRunAutomationHandler(
     reviewRunId: Id<'reviewRuns'>;
   },
 ) {
-  await getVerifiedCurrentSiteAdminUserFromActionOrThrow(ctx);
+  const automationActor = await getVerifiedCurrentSiteAdminUserFromActionOrThrow(ctx);
+  await ctx.runMutation(anyApi.securityOps.syncCurrentSecurityFindingsInternal, {
+    actorUserId: automationActor.authUserId,
+  });
   const detail = (await ctx.runQuery(anyApi.securityReviews.getReviewRunDetail, {
     reviewRunId: args.reviewRunId,
   })) as {
