@@ -26,6 +26,8 @@ That access can expose:
 - Confirm CI remains the only unattended production deploy path.
 - Record the review as a security evidence artifact in the existing security workspace flow.
 
+Quarterly access review evidence should stay attached to the existing security workspace flow.
+
 ## Break-Glass Response
 
 - Restrict production Convex access to the approved operator set and CI first.

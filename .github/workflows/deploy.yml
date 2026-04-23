@@ -411,6 +411,7 @@ jobs:
 
       - name: Run deploy doctor policy gate
         env:
+          CONVEX_SECRET_TIER_ACK: "1"
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
         run: pnpm run deploy:doctor -- --prod --json
