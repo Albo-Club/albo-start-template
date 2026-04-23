@@ -102,9 +102,7 @@ export function AdminSecuritySupportCell(props: { control: SecurityControlWorksp
   );
 }
 
-export function AdminSecurityFrameworkSummaryCell(props: {
-  control: SecurityControlWorkspaceSummary;
-}) {
+function AdminSecurityFrameworkSummaryCell(props: { control: SecurityControlWorkspaceSummary }) {
   const { control } = props;
   const frameworkSummaries = [
     {

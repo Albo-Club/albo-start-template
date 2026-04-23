@@ -269,9 +269,7 @@ export function getReviewTaskStatusLabel(task: ReviewTaskDetail) {
   }
 }
 
-export function formatReviewTaskEvidenceSourceType(
-  sourceType: ReviewTaskEvidenceLink['sourceType'],
-) {
+function formatReviewTaskEvidenceSourceType(sourceType: ReviewTaskEvidenceLink['sourceType']) {
   switch (sourceType) {
     case 'backup_verification_report':
       return 'Backup verification evidence';
@@ -539,22 +537,6 @@ export function formatVendorDecisionSummary(args: {
   }
 
   return `${summaryLead}, but ${governanceGaps.join(', ')}.`;
-}
-
-export function getVendorPrimaryActionLabel(args: {
-  controlCount: number;
-  hasDraftReview: boolean;
-  owner: string;
-}) {
-  if (args.hasDraftReview) {
-    return 'Save changes';
-  }
-
-  if (args.owner.trim().length === 0 || args.controlCount === 0) {
-    return 'Resolve governance gaps';
-  }
-
-  return 'Review now';
 }
 
 export function formatEvidenceLifecycleStatus(

@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 
-export const CSP_MODE_ENV_NAME = 'CSP_MODE';
-export const CSP_REPORT_URI = '/api/csp-report';
+const CSP_MODE_ENV_NAME = 'CSP_MODE';
+const CSP_REPORT_URI = '/api/csp-report';
 
 export type DocumentCspMode = 'enforce' | 'report-only';
 

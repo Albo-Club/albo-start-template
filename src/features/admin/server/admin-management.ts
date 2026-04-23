@@ -164,8 +164,6 @@ function normalizeAdminSession(session: BetterAuthAdminUserSession): AdminUserSe
   };
 }
 
-export { shapeAdminUsers };
-
 function normalizeAuthErrorMessage(
   code: string | undefined,
   message: string | undefined,

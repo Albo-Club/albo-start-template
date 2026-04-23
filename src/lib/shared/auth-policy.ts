@@ -60,7 +60,7 @@ type StepUpRequirementPolicy = {
 
 const FIVE_MINUTES_MS = 5 * 60 * 1000;
 
-export const STEP_UP_REQUIREMENT_POLICIES = {
+const STEP_UP_REQUIREMENT_POLICIES = {
   [STEP_UP_REQUIREMENTS.accountEmailChange]: {
     allowedMethods: [
       STEP_UP_METHODS.passkey,

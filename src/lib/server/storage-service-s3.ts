@@ -231,7 +231,7 @@ function getCapabilityClient(config: StorageAwsRuntimeConfig, capability: Storag
   return client;
 }
 
-export function getRequiredStorageEncryptionHeaders(
+function getRequiredStorageEncryptionHeaders(
   config: StorageAwsRuntimeConfig,
   kind: StorageBucketKind,
 ) {

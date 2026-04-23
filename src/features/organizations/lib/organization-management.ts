@@ -10,10 +10,10 @@ const ORGANIZATION_DIRECTORY_SORT_FIELDS = [
   'createdAt',
 ] as const;
 
-export const ORGANIZATION_DIRECTORY_KIND_VALUES = ['all', 'member', 'invite'] as const;
-export const ORGANIZATION_DIRECTORY_ROLE_VALUES = ['owner', 'admin', 'member'] as const;
-export const ORGANIZATION_MEMBER_STATUS_VALUES = ['active', 'suspended', 'deactivated'] as const;
-export const ORGANIZATION_INVITE_POLICY_VALUES = ['owners_admins', 'owners_only'] as const;
+const ORGANIZATION_DIRECTORY_KIND_VALUES = ['all', 'member', 'invite'] as const;
+const ORGANIZATION_DIRECTORY_ROLE_VALUES = ['owner', 'admin', 'member'] as const;
+const ORGANIZATION_MEMBER_STATUS_VALUES = ['active', 'suspended', 'deactivated'] as const;
+const ORGANIZATION_INVITE_POLICY_VALUES = ['owners_admins', 'owners_only'] as const;
 export const ORGANIZATION_AUDIT_EVENT_TYPES = [
   'organization_created',
   'organization_updated',
@@ -95,12 +95,7 @@ export const ORGANIZATION_AUDIT_EVENT_TYPES = [
 ] as const;
 const ORGANIZATION_AUDIT_EVENT_FILTER_VALUES = ['all', ...ORGANIZATION_AUDIT_EVENT_TYPES] as const;
 const ORGANIZATION_AUDIT_PRESET_VALUES = ['all', 'security'] as const;
-export const ORGANIZATION_AUDIT_SORT_FIELDS = [
-  'label',
-  'identifier',
-  'userId',
-  'createdAt',
-] as const;
+const ORGANIZATION_AUDIT_SORT_FIELDS = ['label', 'identifier', 'userId', 'createdAt'] as const;
 
 export const organizationDirectorySearchSchema = z.object({
   page: z.number().default(1),
@@ -148,8 +143,8 @@ export type OrganizationCapabilities = {
   canManagePolicies: boolean;
 };
 
-export const ORGANIZATION_ENTERPRISE_PROVIDER_KEYS = ['google-workspace', 'entra', 'okta'] as const;
-export const ORGANIZATION_ENTERPRISE_PROVIDER_STATUS_VALUES = [
+const ORGANIZATION_ENTERPRISE_PROVIDER_KEYS = ['google-workspace', 'entra', 'okta'] as const;
+const ORGANIZATION_ENTERPRISE_PROVIDER_STATUS_VALUES = [
   'active',
   'not_configured',
   'coming_soon',
@@ -238,7 +233,7 @@ export type OrganizationDomainVerificationResult = {
   reason: string | null;
 };
 
-export type OrganizationEnterpriseAccessResult = {
+type OrganizationEnterpriseAccessResult = {
   allowed: boolean;
   enterpriseAuthMode: OrganizationEnterpriseAuthMode;
   providerKey: OrganizationEnterpriseProviderKey | null;
@@ -254,7 +249,7 @@ export type OrganizationEnterpriseAccessResult = {
   } | null;
 };
 
-export type OrganizationSupportAccessGrantRow = {
+type OrganizationSupportAccessGrantRow = {
   id: Id<'organizationSupportAccessGrants'>;
   approvalMethod: 'single_owner';
   approvedAt: number;
@@ -298,7 +293,7 @@ export type OrganizationLegalHoldSummary = {
   status: OrganizationLegalHoldStatus;
 };
 
-export type RetentionDeletionBatch = {
+type RetentionDeletionBatch = {
   id: Id<'retentionDeletionBatches'>;
   organizationId: string;
   jobKind: RetentionDeletionJobKind;
@@ -313,13 +308,13 @@ export type RetentionDeletionBatch = {
   createdAt: number;
 };
 
-export type OrganizationSupportAccessSiteAdminOption = {
+type OrganizationSupportAccessSiteAdminOption = {
   authUserId: string;
   email: string;
   name: string | null;
 };
 
-export type OrganizationSupportAccessReasonCategory =
+type OrganizationSupportAccessReasonCategory =
   | 'incident_response'
   | 'customer_requested_change'
   | 'data_repair'

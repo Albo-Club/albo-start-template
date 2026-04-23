@@ -36,8 +36,14 @@
     "tailwindcss-animate"
   ],
   "ignoreBinaries": ["vite-bundle-analyzer", "build"],
+  "ignoreIssues": {
+    "src/lib/shared/audit-metadata-types.ts": ["types"],
+    "src/lib/shared/storage-service-contract.ts": ["types"]
+  },
   "ignoreExportsUsedInFile": {
+    "function": true,
     "interface": true,
-    "type": true
+    "type": true,
+    "variable": true
   }
 }

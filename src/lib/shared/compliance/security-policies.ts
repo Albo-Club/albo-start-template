@@ -236,6 +236,6 @@ if (controlsWithoutPrimaryPolicy.length > 0) {
   );
 }
 
-export const SECURITY_POLICY_CATALOG_BY_ID = new Map(
+const SECURITY_POLICY_CATALOG_BY_ID = new Map(
   SECURITY_POLICY_CATALOG.map((policy) => [policy.policyId, policy] as const),
 );

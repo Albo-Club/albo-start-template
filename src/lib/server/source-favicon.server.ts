@@ -1,6 +1,6 @@
-export const SOURCE_FAVICON_CACHE_CONTROL = 'private, max-age=86400, stale-while-revalidate=86400';
+const SOURCE_FAVICON_CACHE_CONTROL = 'private, max-age=86400, stale-while-revalidate=86400';
 export const SOURCE_FAVICON_MAX_BYTES = 32 * 1024;
-export const SOURCE_FAVICON_TIMEOUT_MS = 3_000;
+const SOURCE_FAVICON_TIMEOUT_MS = 3_000;
 
 function concatUint8Arrays(chunks: Uint8Array[]): Uint8Array {
   const total = chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0);

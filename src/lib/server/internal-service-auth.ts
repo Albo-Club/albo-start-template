@@ -30,21 +30,3 @@ export function hasValidInternalServiceAuthorization(args: {
     args.authorizationHeader !== null && timingSafeEqual(args.authorizationHeader, expectedHeader)
   );
 }
-
-export function assertInternalServiceAuthorization(args: {
-  authorizationHeader: string | null;
-  expectedSecret: string | null;
-}) {
-  if (!args.expectedSecret) {
-    throw new Error('Internal service shared secret is not configured.');
-  }
-
-  if (
-    !hasValidInternalServiceAuthorization({
-      authorizationHeader: args.authorizationHeader,
-      expectedSecret: args.expectedSecret,
-    })
-  ) {
-    throw new Error('Internal service authorization failed.');
-  }
-}

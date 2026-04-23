@@ -1,5 +1,3 @@
-export type StorageWebhookKind = 'guardduty' | 'inspection';
-
 const WEBHOOK_MAX_AGE_MS = 5 * 60 * 1000;
 
 // Both inputs are HMAC-SHA256 hex strings (always 64 chars), so the early
@@ -36,33 +34,6 @@ export async function createStorageWebhookSignature(secret: string, payload: str
   return Array.from(new Uint8Array(signature), (part) => part.toString(16).padStart(2, '0')).join(
     '',
   );
-}
-
-export async function verifyStorageWebhookSignature(args: {
-  payload: string;
-  sharedSecret: string | null;
-  signature: string | null;
-  timestamp: string | null;
-}) {
-  if (!args.sharedSecret) {
-    throw new Error('Storage webhook shared secret is not configured.');
-  }
-  if (!args.signature || !args.timestamp) {
-    throw new Error('Missing required webhook signature headers.');
-  }
-
-  const timestampMs = Number.parseInt(args.timestamp, 10);
-  if (!Number.isFinite(timestampMs) || Math.abs(Date.now() - timestampMs) > WEBHOOK_MAX_AGE_MS) {
-    throw new Error('Webhook timestamp is stale.');
-  }
-
-  const expected = await createStorageWebhookSignature(
-    args.sharedSecret,
-    `${args.timestamp}.${args.payload}`,
-  );
-  if (!timingSafeEqual(expected, args.signature)) {
-    throw new Error('Webhook signature verification failed.');
-  }
 }
 
 export async function verifyStorageWebhookSignatureWithSecrets(args: {

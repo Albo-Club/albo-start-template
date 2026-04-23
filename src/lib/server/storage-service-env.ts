@@ -150,7 +150,7 @@ export function getStorageInspectionWorkerRuntimeConfig(): StorageInspectionWork
   };
 }
 
-export function getStorageDecisionWorkerRuntimeConfig(): StorageDecisionWorkerRuntimeConfig {
+function getStorageDecisionWorkerRuntimeConfig(): StorageDecisionWorkerRuntimeConfig {
   assertNoLegacyWebhookSecret();
   return {
     awsRegion: readRequiredEnv('AWS_REGION'),

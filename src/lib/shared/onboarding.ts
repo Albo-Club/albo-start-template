@@ -1,4 +1,4 @@
-export const ONBOARDING_STATUSES = [
+const ONBOARDING_STATUSES = [
   'not_started',
   'email_pending',
   'email_sent',

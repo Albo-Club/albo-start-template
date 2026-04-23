@@ -51,11 +51,11 @@ export const securityVendorsSearchSchema = z.object({
   vendorSearch: z.string().default(''),
 });
 
-export const securityReviewsSearchSchema = z.object({
+const securityReviewsSearchSchema = z.object({
   selectedReviewRun: z.string().optional(),
 });
 
-export const securityReportsSearchSchema = z.object({
+const securityReportsSearchSchema = z.object({
   reportKind: z.enum(REPORT_KIND_FILTER_VALUES).default('all'),
   reportReviewStatus: z.enum(REPORT_REVIEW_STATUS_FILTER_VALUES).default('all'),
   reportSearch: z.string().default(''),

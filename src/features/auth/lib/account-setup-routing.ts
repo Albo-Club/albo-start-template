@@ -1,4 +1,4 @@
-export const APP_REDIRECT_TARGETS = [
+const APP_REDIRECT_TARGETS = [
   '/app',
   '/app/profile',
   '/app/admin',

@@ -10,15 +10,6 @@ const stepUpRedirectSchema = z.object({
     .optional(),
 });
 
-export const createOrganizationAdminStepUpChallengeServerFn = createServerFn({ method: 'POST' })
-  .inputValidator(stepUpRedirectSchema)
-  .handler(async ({ data }) => {
-    return await createStepUpChallengeForCurrentUser({
-      redirectTo: data.redirectTo,
-      requirement: STEP_UP_REQUIREMENTS.organizationAdmin,
-    });
-  });
-
 export const createSupportAccessApprovalStepUpChallengeServerFn = createServerFn({ method: 'POST' })
   .inputValidator(stepUpRedirectSchema)
   .handler(async ({ data }) => {
