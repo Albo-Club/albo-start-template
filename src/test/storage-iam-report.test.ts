@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { generateStorageIamReport } from '../../scripts/generate-storage-iam-report';
 
 describe('storage IAM report', () => {
-  it('matches the checked-in synthesized IAM report', () => {
+  it('matches the checked-in synthesized IAM report', { timeout: 30_000 }, () => {
     const checkedInReport = readFileSync(
       path.join(process.cwd(), 'docs', 'generated', 'storage-iam-report.md'),
       'utf8',

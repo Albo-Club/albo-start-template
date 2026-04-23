@@ -239,6 +239,23 @@ const defaultSearch: SearchState = {
   selectedVendor: undefined,
 };
 
+const functionNameCache = new WeakMap<object, string>();
+
+function resolveFunctionName(reference: unknown) {
+  if ((typeof reference !== 'function' && typeof reference !== 'object') || reference === null) {
+    return '';
+  }
+
+  const cachedName = functionNameCache.get(reference);
+  if (cachedName) {
+    return cachedName;
+  }
+
+  const functionName = getFunctionName(reference as Parameters<typeof getFunctionName>[0]);
+  functionNameCache.set(reference, functionName);
+  return functionName;
+}
+
 function buildSummary() {
   return {
     auth: {
@@ -949,7 +966,7 @@ function mockSecurityQueries(args: {
       return undefined;
     }
 
-    const functionName = getFunctionName(query as Parameters<typeof getFunctionName>[0]);
+    const functionName = resolveFunctionName(query);
 
     switch (functionName) {
       case 'securityPosture:getSecurityWorkspaceOverview':
@@ -1007,16 +1024,40 @@ function mockSecurityQueries(args: {
 }
 
 function mockSecurityActions(actions: Partial<Record<string, (...args: never[]) => unknown>>) {
+  const fallbackActions = new Map<string, ReturnType<typeof vi.fn>>();
+
   useActionMock.mockImplementation((action: unknown) => {
-    const functionName = getFunctionName(action as Parameters<typeof getFunctionName>[0]);
-    return actions[functionName] ?? vi.fn();
+    const functionName = resolveFunctionName(action);
+    const existingAction = actions[functionName];
+    if (existingAction) {
+      return existingAction;
+    }
+
+    let fallbackAction = fallbackActions.get(functionName);
+    if (!fallbackAction) {
+      fallbackAction = vi.fn();
+      fallbackActions.set(functionName, fallbackAction);
+    }
+    return fallbackAction;
   });
 }
 
 function mockSecurityMutations(mutations: Partial<Record<string, (...args: never[]) => unknown>>) {
+  const fallbackMutations = new Map<string, ReturnType<typeof vi.fn>>();
+
   useMutationMock.mockImplementation((mutation: unknown) => {
-    const functionName = getFunctionName(mutation as Parameters<typeof getFunctionName>[0]);
-    return mutations[functionName] ?? vi.fn().mockResolvedValue(undefined);
+    const functionName = resolveFunctionName(mutation);
+    const existingMutation = mutations[functionName];
+    if (existingMutation) {
+      return existingMutation;
+    }
+
+    let fallbackMutation = fallbackMutations.get(functionName);
+    if (!fallbackMutation) {
+      fallbackMutation = vi.fn().mockResolvedValue(undefined);
+      fallbackMutations.set(functionName, fallbackMutation);
+    }
+    return fallbackMutation;
   });
 }
 

@@ -43,6 +43,8 @@ export default defineConfig({
         },
         plugins: createReactOnlyPlugins(),
         test: {
+          execArgv: ['--max-old-space-size=8192'],
+          maxWorkers: 1,
           name: 'unit-jsdom-heavy',
           environment: 'jsdom',
           environmentOptions: {
