@@ -48,3 +48,6 @@ if (!window.scrollTo) {
     value: () => undefined,
   });
 }
+
+globalThis.Event = window.Event;
+globalThis.CustomEvent = window.CustomEvent;

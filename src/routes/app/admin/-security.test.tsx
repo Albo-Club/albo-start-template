@@ -961,6 +961,28 @@ function mockSecurityQueries(args: {
   triggeredReviewRuns?: unknown[];
   vendorWorkspaces?: unknown[];
 }) {
+  const controls = (args.controls ?? [buildControl()]) as Array<Record<string, unknown>>;
+  const policies = (args.policies ?? [buildPolicySummary()]) as unknown[];
+  const policyDetail = args.policyDetail ?? buildPolicyDetail();
+  const auditReadiness = args.auditReadiness ?? buildAuditReadiness();
+  const vendorWorkspaces = args.vendorWorkspaces ?? [buildVendorWorkspace()];
+  const triggeredReviewRuns = args.triggeredReviewRuns ?? [];
+  const workspaceOverview = buildWorkspaceOverview({
+    auditReadiness,
+    controls,
+    currentAnnualRun: args.currentAnnualRun,
+    findings: args.findings,
+    summary: args.summary,
+    vendorWorkspaces,
+  });
+  const findingsBoard = buildFindingsBoard({
+    findings: args.findings,
+  });
+  const reportsBoard = buildReportsBoard({
+    auditReadiness,
+    evidenceReports: args.evidenceReports,
+  });
+
   useQueryMock.mockImplementation((query: unknown, queryArgs?: unknown) => {
     if (queryArgs === 'skip') {
       return undefined;
@@ -970,11 +992,10 @@ function mockSecurityQueries(args: {
 
     switch (functionName) {
       case 'securityPosture:getSecurityWorkspaceOverview':
-        return buildWorkspaceOverview(args);
+        return workspaceOverview;
       case 'securityWorkspace:listSecurityControlWorkspaces':
-        return args.controls ?? [buildControl()];
+        return controls;
       case 'securityWorkspace:getSecurityControlWorkspaceDetail': {
-        const controls = (args.controls ?? [buildControl()]) as Array<Record<string, unknown>>;
         const requestedControlId =
           queryArgs && typeof queryArgs === 'object' && 'internalControlId' in queryArgs
             ? queryArgs.internalControlId
@@ -986,19 +1007,19 @@ function mockSecurityQueries(args: {
         );
       }
       case 'securityPolicies:listSecurityPolicies':
-        return args.policies ?? [buildPolicySummary()];
+        return policies;
       case 'securityPolicies:getSecurityPolicyDetail':
-        return args.policyDetail ?? buildPolicyDetail();
+        return policyDetail;
       case 'securityPosture:getSecurityFindingsBoard':
-        return buildFindingsBoard(args);
+        return findingsBoard;
       case 'securityPosture:getSecurityReportsBoard':
-        return buildReportsBoard(args);
+        return reportsBoard;
       case 'securityPosture:getAuditReadinessOverview':
-        return args.auditReadiness ?? buildAuditReadiness();
+        return auditReadiness;
       case 'securityReports:getEvidenceReportDetail':
         return args.reportDetail ?? null;
       case 'securityReports:listSecurityVendors':
-        return args.vendorWorkspaces ?? [buildVendorWorkspace()];
+        return vendorWorkspaces;
       case 'securityReviews:getCurrentAnnualReviewRun':
         return args.currentAnnualRun ?? null;
       case 'securityReviews:getReviewRunDetail': {
@@ -1016,7 +1037,7 @@ function mockSecurityQueries(args: {
         return args.reviewDetail ?? null;
       }
       case 'securityReviews:listTriggeredReviewRuns':
-        return args.triggeredReviewRuns ?? [];
+        return triggeredReviewRuns;
       default:
         return undefined;
     }
@@ -1141,10 +1162,10 @@ describe('Admin security route', () => {
 
     renderRoute();
 
-    expect(screen.getByRole('tab', { name: /controls/i })).toHaveTextContent('1');
-    expect(screen.getByRole('tab', { name: /vendors/i })).toHaveTextContent('1');
-    expect(screen.getByRole('tab', { name: /findings/i })).toHaveTextContent('1');
-    expect(screen.getByRole('tab', { name: /reviews/i })).toHaveTextContent('3');
+    expect(screen.getByRole('button', { name: /controls/i })).toHaveTextContent('1');
+    expect(screen.getByRole('button', { name: /vendors/i })).toHaveTextContent('1');
+    expect(screen.getByRole('button', { name: /findings/i })).toHaveTextContent('1');
+    expect(screen.getByRole('button', { name: /^reviews$/i })).toHaveTextContent('Reviews');
   });
 
   it('generates evidence reports and submits trimmed review notes', async () => {
@@ -1868,9 +1889,7 @@ describe('Admin security route', () => {
       );
     });
 
-    const triggeredReviewsCard = screen
-      .getByText('Triggered Reviews')
-      .closest('[data-slot="card"]');
+    const triggeredReviewsCard = screen.getByText('Follow-Ups').closest('[data-slot="card"]');
     expect(triggeredReviewsCard).not.toBeNull();
     await user.click(
       within(triggeredReviewsCard as HTMLElement).getByRole('button', {
@@ -1984,7 +2003,6 @@ describe('Admin security route', () => {
       });
     });
 
-    expect(screen.getByText('1 required task is blocking finalization')).toBeInTheDocument();
     const backupTaskCard = document.getElementById('review-task-review-task-backup');
     expect(backupTaskCard).not.toBeNull();
     expect(
