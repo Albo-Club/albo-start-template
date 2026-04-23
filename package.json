@@ -236,8 +236,10 @@
   "packageManager": "pnpm@10.33.0+sha512.10568bb4a6afb58c9eb3630da90cc9516417abebd3fabbe6739f0ae795728da1491e9db5a544c76ad8eb7570f5c4bb3d6c637b2cb41bfdcdb47fa823c8649319",
   "pnpm": {
     "overrides": {
-      "h3-v2": "npm:h3@2.0.1-rc.18",
-      "lodash": "4.17.23",
+      "drizzle-orm": "0.45.2",
+      "fast-xml-parser": "5.7.1",
+      "lodash": "4.18.1",
+      "uuid": "14.0.0",
       "brace-expansion": "5.0.5"
     }
   }
