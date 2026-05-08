@@ -174,7 +174,47 @@ Trouve ton slug à `https://dashboard.convex.dev` — c'est dans l'URL `/t/<slug
 
 ---
 
-## #10 — Node engine warning ≥24
+## #10 — CSS `@import` not first when `albo-brand.css` is itself `@imported`
+
+**Découvert** : 2026-05-08 (test-5)
+**Symptôme** :
+```
+[vite:css][postcss] @import must precede all other statements
+@import url('https://fonts.googleapis.com/css2?family=Inter...');
+```
+
+**Root cause** : CSS spec demande que les `@import` soient en **première position** du fichier final. Quand `app.css` fait `@import 'tailwindcss'` puis `@import './albo-brand.css'`, et que `albo-brand.css` commence par `@import url(...)` Google Fonts, ces imports se retrouvent en milieu du fichier concaténé → violation spec.
+
+**Fix appliqué** : retiré les `@import url(...)` Google Fonts de `albo-brand.css`. À la place, ajoutés comme `<link rel="stylesheet">` dans `src/routes/__root.tsx`. Bonus : `<link>` permet le `preconnect` parallèle, meilleur pour la perf.
+
+**Pattern général** : ne jamais `@import` une URL externe depuis un fichier CSS qui peut être lui-même imported. Toujours via `<link>` dans le HTML.
+
+---
+
+## #11 — Upstream "regulated baseline" force MFA + email verification au signup
+
+**Découvert** : 2026-05-08
+**Symptôme** : à la création du compte, le user est forcé sur la page "Account setup" qui demande MFA + verification email même si on veut juste tester avec email/password.
+
+**Root cause** : `dyeoman2/tanstack-start-template` cible des workloads HIPAA/SOC2/NIST. Son `src/lib/shared/security-baseline.ts` exporte `ALWAYS_ON_REGULATED_BASELINE` avec `requireMfaOrPasskey: true`, `requireVerifiedEmail: true`, `auditExportRequiresStepUp: true`. Ces flags sont câblés dans toute la stack auth.
+
+**Fix appliqué dans le fork** : Albo override dans `security-baseline.ts` :
+```ts
+export const ALWAYS_ON_REGULATED_BASELINE = {
+  auditExportRequiresStepUp: false,
+  requireVerifiedEmail: false,
+  requireMfaOrPasskey: false,
+  allowBreakGlassPasswordLogin: true,  // password sign-in ON
+  webSearchAllowed: false,
+  aiChatEnabled: true,
+} as const;
+```
+
+**Pour un projet client compliance-heavy** (healthcare, finance régulée) : flip ces flags à `true` au début du projet. Documenté dans `ALBO.md`.
+
+---
+
+## #12 — Node engine warning ≥24
 
 **Découvert** : 2026-05-06 (cosmétique)
 **Symptôme** :

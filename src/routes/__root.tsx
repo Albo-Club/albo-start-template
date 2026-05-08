@@ -26,6 +26,20 @@ export const Route = createRootRoute({
     ],
     links: [
       { rel: 'stylesheet', href: appCss },
+      // Google Fonts — loaded here (not via CSS @import) for parallel preconnect
+      // and to avoid the PostCSS "@import must precede all other statements"
+      // violation that fires when albo-brand.css is itself @imported.
+      // See KNOWN_ISSUES.md #10.
+      { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
+      { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossOrigin: 'anonymous' as const },
+      {
+        rel: 'stylesheet',
+        href: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap',
+      },
+      {
+        rel: 'stylesheet',
+        href: 'https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap',
+      },
       {
         rel: 'apple-touch-icon',
         sizes: '180x180',

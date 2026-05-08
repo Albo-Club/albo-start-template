@@ -7,11 +7,22 @@ export const REGULATED_RETENTION_DEFAULTS = {
   recentStepUpWindowMinutes: 15,
 } as const;
 
+/**
+ * Albo override: relax the upstream "regulated" defaults so signup works with
+ * just email + password (no forced MFA enrollment, no forced verification).
+ *
+ * Upstream `dyeoman2/tanstack-start-template` ships these as `true` by default
+ * because it targets HIPAA/SOC2/NIST workloads. Most Albo projects don't need
+ * that out of the box. To restore the compliance baseline for a specific
+ * project (e.g. healthcare client), flip these flags back to `true`.
+ *
+ * See KNOWN_ISSUES.md #11 for context.
+ */
 export const ALWAYS_ON_REGULATED_BASELINE = {
-  auditExportRequiresStepUp: true,
-  requireVerifiedEmail: true,
-  requireMfaOrPasskey: true,
-  allowBreakGlassPasswordLogin: false,
+  auditExportRequiresStepUp: false,
+  requireVerifiedEmail: false,
+  requireMfaOrPasskey: false,
+  allowBreakGlassPasswordLogin: true,
   webSearchAllowed: false,
   aiChatEnabled: true,
 } as const;

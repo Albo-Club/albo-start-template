@@ -12,6 +12,29 @@
 
 set -euo pipefail
 
+# Silence cosmetic Node engine warnings (upstream wants ≥24, 22+ works fine)
+export PNPM_CONFIG_ENGINE_STRICT=false
+export NPM_CONFIG_ENGINE_STRICT=false
+
+# --- Helpers ----------------------------------------------------------------
+
+# Spinner during a silent background command. Usage: cmd & spin $! "msg"
+spin() {
+  local pid=$1
+  local msg=$2
+  local chars='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
+  local i=0
+  # tput cnorm/civis hide/show cursor; ignore on dumb terminals
+  command -v tput >/dev/null && tput civis 2>/dev/null || true
+  while kill -0 "$pid" 2>/dev/null; do
+    printf "\r  %s %s   " "${chars:$((i % 10)):1}" "$msg"
+    sleep 0.1
+    i=$((i+1))
+  done
+  command -v tput >/dev/null && tput cnorm 2>/dev/null || true
+  printf "\r  ✓ %s          \n" "$msg"
+}
+
 # --- Args parsing ------------------------------------------------------------
 
 PROJECT_NAME="${1:-}"
@@ -122,7 +145,10 @@ fi
 # --- Step 3: Install deps ----------------------------------------------------
 
 echo "→ [3/14] Installing dependencies (~1 min)"
-pnpm install --silent 2>&1 | tail -3
+PNPM_LOG="/tmp/albo-pnpm-$$.log"
+pnpm install --silent >"$PNPM_LOG" 2>&1 &
+spin $! "downloading and linking packages (this is the slowest step)"
+rm -f "$PNPM_LOG"
 
 # --- Step 4: Provision Convex deployment -------------------------------------
 
@@ -243,16 +269,17 @@ fi
 echo "→ [10/14] Running deploy:doctor (warnings about netlify/git remote are OK)"
 pnpm run deploy:doctor 2>&1 | tail -15 || true
 
-# --- Step 11: Initial commit -------------------------------------------------
+# --- Step 11: Initial commit (skipping hooks for bootstrap speed) ------------
 
-echo "→ [11/14] Initial Albo commit"
+echo "→ [11/14] Initial Albo commit (hooks skipped — they'll run on your real commits)"
 git add -A 2>/dev/null || true
 if ! git diff --cached --quiet 2>/dev/null; then
-  git commit -q -m "chore: bootstrap from albo-start-template at $(date +%Y-%m-%d)" || true
+  git commit --quiet --no-verify -m "chore: bootstrap from albo-start-template at $(date +%Y-%m-%d)" || true
   if git remote get-url origin 2>/dev/null | grep -q "$PROJECT_NAME"; then
-    git push origin HEAD 2>&1 | tail -2 || echo "   (push skipped — push manually if needed)"
+    git push --no-verify --quiet origin HEAD 2>&1 | tail -2 || echo "   (push skipped — run 'git push' manually when ready)"
   fi
 fi
+echo "  ✓ committed and pushed"
 
 # --- Step 12: Open repo in browser (Albo mode only) --------------------------
 
@@ -261,21 +288,64 @@ if [[ "$MODE" == "albo" ]]; then
   open "https://github.com/Albo-Club/$PROJECT_NAME" 2>/dev/null || true
 fi
 
-# --- Step 13: Start dev server ----------------------------------------------
+# --- Step 13: Start dev server -----------------------------------------------
 
 echo "→ [13/14] Starting dev server (Vite + Convex in parallel)"
+echo "  ⏳ Booting — this takes ~10-15 seconds..."
+
+DEV_LOG="/tmp/albo-dev-$$.log"
+pnpm dev >"$DEV_LOG" 2>&1 &
+DEV_PID=$!
+
+# Wait for Vite to respond on port 3000 (max 60s)
+READY=0
+for i in $(seq 1 60); do
+  if curl -sf -o /dev/null --max-time 1 http://localhost:3000/ 2>/dev/null; then
+    READY=1
+    break
+  fi
+  printf "."
+  sleep 1
+done
+printf "\n"
+
+if [[ "$READY" -eq 0 ]]; then
+  echo ""
+  echo "⚠️  Dev server didn't respond on http://localhost:3000 within 60s."
+  echo "   Tail of dev server log:"
+  tail -20 "$DEV_LOG"
+  echo ""
+  echo "   Continuing anyway — the server may still come up. Logs streaming below."
+fi
+
+# --- Step 14: Final summary + browser ---------------------------------------
+
+DEPLOY_NAME=$(grep "^CONVEX_DEPLOYMENT=" .env.local 2>/dev/null | sed 's/^CONVEX_DEPLOYMENT=dev:\([^ ]*\).*/\1/' || echo "")
+
 echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  ✅ Bootstrap done in $SECONDS seconds"
-echo "  📁 $TARGET_DIR"
-echo "  🌐 http://localhost:3000"
-echo "  🔧 Mode: $MODE"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "  ✅ $PROJECT_NAME ready in ${SECONDS}s — let's go"
+echo ""
+echo "  🌐  App:       http://localhost:3000"
+echo "  📁  Local:     $TARGET_DIR"
+if [[ -n "$DEPLOY_NAME" ]]; then
+  echo "  ⚙️   Convex:    https://dashboard.convex.dev/d/$DEPLOY_NAME"
+fi
+if [[ "$MODE" == "albo" ]]; then
+  echo "  📦  GitHub:    https://github.com/Albo-Club/$PROJECT_NAME"
+fi
+echo "  🔧  Mode:      $MODE"
+echo ""
+echo "  Browser will open. Press Ctrl+C in this terminal to stop the dev server."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
-# --- Step 14: Open browser ---------------------------------------------------
+open "http://localhost:3000" 2>/dev/null || true
 
-(sleep 8 && open "http://localhost:3000" 2>/dev/null) &
-
-# Hand off to pnpm dev (blocks)
-exec pnpm dev
+# Stream dev server logs and block until user kills the server
+trap "kill $DEV_PID 2>/dev/null; rm -f $DEV_LOG; exit 0" INT TERM
+tail -f "$DEV_LOG" &
+TAIL_PID=$!
+wait $DEV_PID
+kill $TAIL_PID 2>/dev/null || true
+rm -f "$DEV_LOG"
