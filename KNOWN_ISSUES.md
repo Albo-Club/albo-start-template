@@ -112,7 +112,35 @@ To send emails to other recipients, please verify a domain at resend.com/domains
 
 ---
 
-## #6 — Node engine warning ≥24
+## #6 — `setup:env` n'append pas les secrets si `.env.local` existe
+
+**Découvert** : 2026-05-08 (real-world bootstrap)
+**Symptôme** : `setup:env` imprime des secrets à stdout, n'append pas à `.env.local`. La suite du bootstrap pète sur `BETTER_AUTH_SECRET environment variable is required`.
+
+**Root cause** : `pnpm setup:env` (upstream) refuse d'écraser un `.env.local` existant — il imprime juste les secrets générés en console et te laisse les coller à la main.
+
+**Fix appliqué dans le fork** : `albo-create.sh` étape 5 capture stdout, grep les `BETTER_AUTH_SECRETS=` / `BETTER_AUTH_SECRET=` / `AUTH_PROXY_SHARED_SECRET=`, et les append automatiquement à `.env.local`.
+
+---
+
+## #7 — Better Auth secrets pas mirrored vers Convex
+
+**Découvert** : 2026-05-08
+**Symptôme** : `auth:getLatestJwks` plante au runtime avec `BETTER_AUTH_SECRET environment variable is required`.
+
+**Root cause** : Les secrets sont dans `.env.local` (utilisés par le client Better Auth côté Vite SSR) mais PAS sur le déploiement Convex (où tournent les actions auth). Upstream `setup:env` n'envoie rien à Convex.
+
+**Fix appliqué dans le fork** : `albo-fix-env.sh` étape 3 lit `BETTER_AUTH_SECRET` / `BETTER_AUTH_SECRETS` / `AUTH_PROXY_SHARED_SECRET` depuis `.env.local` et les push sur Convex via `convex env set`.
+
+**Manual fix** :
+```bash
+pnpm exec convex env set BETTER_AUTH_SECRET "$(grep '^BETTER_AUTH_SECRET=' .env.local | cut -d= -f2-)"
+# idem pour BETTER_AUTH_SECRETS et AUTH_PROXY_SHARED_SECRET
+```
+
+---
+
+## #8 — Node engine warning ≥24
 
 **Découvert** : 2026-05-06 (cosmétique)
 **Symptôme** :
