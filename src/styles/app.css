@@ -255,3 +255,6 @@
     filter: blur(0.2px);
   }
 }
+
+/* Albo brand override — must be last */
+@import './albo-brand.css';
