@@ -161,7 +161,20 @@ Trouve ton slug à `https://dashboard.convex.dev` — c'est dans l'URL `/t/<slug
 
 ---
 
-## #9 — Node engine warning ≥24
+## #9 — Convex CLI hangs silently when stdout is captured
+
+**Découvert** : 2026-05-08 (real-world bootstrap, sur test-4)
+**Symptôme** : `pnpm exec convex dev --configure new` reste bloqué pendant 15+ min, aucun prompt visible, aucune erreur. Le script n'avance pas au-delà de l'étape 4.
+
+**Root cause** : `convex` CLI utilise une TUI Ink (React-based). Quand stdout est piped (`$(...)`, `| tail`, etc.), Ink détecte qu'il n'est plus dans un TTY et **désactive tous les prompts interactifs** silencieusement. Si Convex a besoin de quoi que ce soit (sélection team par exemple), il attend un input qui n'arrivera jamais.
+
+**Fix appliqué dans le fork** : `albo-create.sh` n'utilise plus `$(...)` pour capturer la sortie de `convex dev`. À la place, `tee /tmp/albo-create-convex-$$.log` stream en live + log pour analyse post-hoc. Les prompts deviennent visibles et répondables.
+
+**Pattern général à retenir** : tout outil CLI moderne (Convex, gh, npm, prisma, etc.) qui utilise une TUI doit être appelé en streaming, pas capturé. Si tu as besoin du contenu, redirige vers un fichier (`tee`), ne capture pas avec `$()`.
+
+---
+
+## #10 — Node engine warning ≥24
 
 **Découvert** : 2026-05-06 (cosmétique)
 **Symptôme** :
