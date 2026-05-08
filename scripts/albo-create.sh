@@ -127,7 +127,8 @@ pnpm install --silent 2>&1 | tail -3
 # --- Step 4: Provision Convex deployment -------------------------------------
 
 echo "→ [4/14] Provisioning Convex dev deployment"
-# We don't pass --team by default — Convex uses your default team automatically.
+echo "  (Convex CLI may prompt for team selection — answer if asked)"
+
 # Override with CONVEX_TEAM env var if you have multiple teams and want to force one.
 TEAM_FLAG=""
 if [[ -n "${CONVEX_TEAM:-}" ]]; then
@@ -135,28 +136,39 @@ if [[ -n "${CONVEX_TEAM:-}" ]]; then
   echo "  Using team override: $CONVEX_TEAM"
 fi
 
-CONVEX_OUT=$(pnpm exec convex dev --once \
+# IMPORTANT: do NOT capture output with $(...) — it disables Convex CLI's
+# interactive prompts (Ink-based TUI hides itself when stdout is piped).
+# Stream live so user can answer team prompts if needed. Use tee for logging.
+CONVEX_LOG="/tmp/albo-create-convex-$$.log"
+set +e
+pnpm exec convex dev --once \
   --configure new \
   $TEAM_FLAG \
   --project "$PROJECT_NAME" \
-  --dev-deployment cloud 2>&1 || true)
-echo "$CONVEX_OUT" | tail -5
+  --dev-deployment cloud 2>&1 | tee "$CONVEX_LOG"
+CONVEX_EXIT=${PIPESTATUS[0]}
+set -e
 
 # Detect known errors and abort cleanly
-if echo "$CONVEX_OUT" | grep -q "Team .* not found"; then
+if grep -q "Team .* not found" "$CONVEX_LOG"; then
   echo ""
   echo "❌ Convex doesn't know your team slug."
   echo "   Find your team slug at https://dashboard.convex.dev (URL: /t/<your-slug>)"
   echo "   Then re-run with: CONVEX_TEAM=<your-slug> bash scripts/albo-create.sh $PROJECT_NAME"
+  rm -f "$CONVEX_LOG"
   exit 1
 fi
 
 # JWKS error at this stage is EXPECTED (we'll fix it in step 6) — don't abort.
+# But absence of CONVEX_DEPLOYMENT means provisioning truly failed.
 if ! grep -q "^CONVEX_DEPLOYMENT=" .env.local 2>/dev/null; then
+  echo ""
   echo "❌ Convex provisioning failed — no CONVEX_DEPLOYMENT in .env.local"
-  echo "   Check the output above for the real error."
+  echo "   See the output above for the real error."
+  rm -f "$CONVEX_LOG"
   exit 1
 fi
+rm -f "$CONVEX_LOG"
 echo "  ✓ Convex deployment provisioned"
 
 # --- Step 5: Generate Better Auth secrets ------------------------------------
