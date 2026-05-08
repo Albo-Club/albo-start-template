@@ -129,7 +129,7 @@
     "@better-auth/passkey": "1.6.8",
     "@better-auth/scim": "^1.6.7",
     "@convex-dev/agent": "^0.6.1",
-    "@convex-dev/better-auth": "^0.11.5",
+    "@convex-dev/better-auth": "^0.12.2",
     "@convex-dev/rate-limiter": "^0.3.2",
     "@convex-dev/resend": "^0.2.3",
     "@napi-rs/canvas": "^0.1.99",
