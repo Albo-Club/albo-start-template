@@ -140,7 +140,28 @@ pnpm exec convex env set BETTER_AUTH_SECRET "$(grep '^BETTER_AUTH_SECRET=' .env.
 
 ---
 
-## #8 — Node engine warning ≥24
+## #8 — Convex team slug ≠ GitHub username
+
+**Découvert** : 2026-05-08
+**Symptôme** :
+```
+✖ Error: Team benbou not found, fix the --team option or remove it
+```
+
+**Root cause** : Le team slug Convex est indépendant du GitHub username. Benjamin a `gh login = Benbou` mais son team Convex est `bouquetbenjamin`. La première version d'`albo-create.sh` utilisait `gh login` comme heuristique → fail pour la plupart des users.
+
+**Fix appliqué dans le fork** : `albo-create.sh` ne passe plus `--team` par défaut. Convex CLI utilise alors le team par défaut de l'access token (marche pour 95% des users qui n'ont qu'un team).
+
+**Override** : si tu as plusieurs teams Convex et veux en forcer une :
+```bash
+CONVEX_TEAM=bouquetbenjamin bash scripts/albo-create.sh mon-projet
+```
+
+Trouve ton slug à `https://dashboard.convex.dev` — c'est dans l'URL `/t/<slug>`.
+
+---
+
+## #9 — Node engine warning ≥24
 
 **Découvert** : 2026-05-06 (cosmétique)
 **Symptôme** :
