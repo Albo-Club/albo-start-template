@@ -126,19 +126,34 @@ pnpm install --silent 2>&1 | tail -3
 
 # --- Step 4: Provision Convex deployment -------------------------------------
 
-echo "→ [4/14] Provisioning Convex dev deployment (interactive if not logged in)"
-pnpm exec convex dev --once --configure new --project "$PROJECT_NAME" 2>&1 | tail -5 || {
+echo "→ [4/14] Provisioning Convex dev deployment (non-interactive)"
+# Use explicit flags for non-interactive provisioning. Team slug = your gh login
+# fallback. If you have multiple Convex teams, pass --team explicitly.
+TEAM_SLUG="${CONVEX_TEAM:-$(gh api user --jq '.login' 2>/dev/null | tr '[:upper:]' '[:lower:]')}"
+pnpm exec convex dev --once \
+  --configure new \
+  --team "$TEAM_SLUG" \
+  --project "$PROJECT_NAME" \
+  --dev-deployment cloud 2>&1 | tail -5 || {
   echo "⚠️  Convex dev provisioning errored (probably JWKS — we'll fix in step 6)"
 }
 
 # --- Step 5: Generate Better Auth secrets ------------------------------------
 
-echo "→ [5/14] Generating Better Auth secrets"
+echo "→ [5/14] Generating Better Auth secrets (auto-extract if upstream prints to stdout)"
 if ! grep -q "^BETTER_AUTH_SECRET=" .env.local 2>/dev/null; then
-  pnpm setup:env 2>&1 | tail -3 || true
-  # setup:env prints secrets to stdout if .env.local exists but doesn't overwrite.
-  # We need to extract them and append.
-  echo "   (if secrets were printed but not appended, the script will retry)"
+  # Capture the printed secrets — upstream setup:env doesn't append if .env.local exists
+  SETUP_OUT=$(pnpm setup:env 2>&1 || true)
+  echo "$SETUP_OUT" | tail -3
+
+  # Extract any printed BETTER_AUTH_*/AUTH_PROXY_* lines and append to .env.local
+  EXTRACTED=$(echo "$SETUP_OUT" | grep -E "^(BETTER_AUTH_SECRETS?|AUTH_PROXY_SHARED_SECRET)=" || true)
+  if [[ -n "$EXTRACTED" ]]; then
+    echo "   ✓ Extracted secrets from setup:env stdout, appending to .env.local"
+    echo "" >> .env.local
+    echo "# Better Auth secrets (auto-appended by albo-create.sh)" >> .env.local
+    echo "$EXTRACTED" >> .env.local
+  fi
 fi
 
 # --- Step 6: Apply Albo fixes (env vars) -------------------------------------
