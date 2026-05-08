@@ -126,17 +126,38 @@ pnpm install --silent 2>&1 | tail -3
 
 # --- Step 4: Provision Convex deployment -------------------------------------
 
-echo "→ [4/14] Provisioning Convex dev deployment (non-interactive)"
-# Use explicit flags for non-interactive provisioning. Team slug = your gh login
-# fallback. If you have multiple Convex teams, pass --team explicitly.
-TEAM_SLUG="${CONVEX_TEAM:-$(gh api user --jq '.login' 2>/dev/null | tr '[:upper:]' '[:lower:]')}"
-pnpm exec convex dev --once \
+echo "→ [4/14] Provisioning Convex dev deployment"
+# We don't pass --team by default — Convex uses your default team automatically.
+# Override with CONVEX_TEAM env var if you have multiple teams and want to force one.
+TEAM_FLAG=""
+if [[ -n "${CONVEX_TEAM:-}" ]]; then
+  TEAM_FLAG="--team $CONVEX_TEAM"
+  echo "  Using team override: $CONVEX_TEAM"
+fi
+
+CONVEX_OUT=$(pnpm exec convex dev --once \
   --configure new \
-  --team "$TEAM_SLUG" \
+  $TEAM_FLAG \
   --project "$PROJECT_NAME" \
-  --dev-deployment cloud 2>&1 | tail -5 || {
-  echo "⚠️  Convex dev provisioning errored (probably JWKS — we'll fix in step 6)"
-}
+  --dev-deployment cloud 2>&1 || true)
+echo "$CONVEX_OUT" | tail -5
+
+# Detect known errors and abort cleanly
+if echo "$CONVEX_OUT" | grep -q "Team .* not found"; then
+  echo ""
+  echo "❌ Convex doesn't know your team slug."
+  echo "   Find your team slug at https://dashboard.convex.dev (URL: /t/<your-slug>)"
+  echo "   Then re-run with: CONVEX_TEAM=<your-slug> bash scripts/albo-create.sh $PROJECT_NAME"
+  exit 1
+fi
+
+# JWKS error at this stage is EXPECTED (we'll fix it in step 6) — don't abort.
+if ! grep -q "^CONVEX_DEPLOYMENT=" .env.local 2>/dev/null; then
+  echo "❌ Convex provisioning failed — no CONVEX_DEPLOYMENT in .env.local"
+  echo "   Check the output above for the real error."
+  exit 1
+fi
+echo "  ✓ Convex deployment provisioned"
 
 # --- Step 5: Generate Better Auth secrets ------------------------------------
 
