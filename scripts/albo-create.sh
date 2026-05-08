@@ -153,7 +153,13 @@ rm -f "$PNPM_LOG"
 # --- Step 4: Provision Convex deployment -------------------------------------
 
 echo "→ [4/14] Provisioning Convex dev deployment"
-echo "  (Convex CLI may prompt for team selection — answer if asked)"
+echo ""
+echo "  ⚠️  Convex CLI peut te demander 2 questions interactives :"
+echo "     1. 'Where should this dev deployment run?' → Enter (Europe par défaut)"
+echo "     2. 'Set up Convex AI files? (Y/n)' → Y (ou juste Enter)"
+echo "     (Si tu set ta région par défaut dans https://dashboard.convex.dev/t/<team>/settings,"
+echo "      tu n'auras plus jamais ce premier prompt sur tes futurs projets.)"
+echo ""
 
 # Override with CONVEX_TEAM env var if you have multiple teams and want to force one.
 TEAM_FLAG=""
@@ -224,19 +230,27 @@ ALBO_MODE="$MODE" ALBO_APP_NAME="$APP_NAME_PRETTY" bash scripts/albo-fix-env.sh
 # --- Step 7: Push functions --------------------------------------------------
 
 echo "→ [7/14] Pushing Convex functions"
-pnpm exec convex dev --once 2>&1 | tail -3
+PUSH_LOG="/tmp/albo-push-$$.log"
+pnpm exec convex dev --once >"$PUSH_LOG" 2>&1 &
+spin $! "compiling and uploading Convex functions (~20s)"
+rm -f "$PUSH_LOG"
 
 # --- Step 8: Sync real JWKS --------------------------------------------------
 
 echo "→ [8/14] Syncing JWKS from Better Auth"
-if ! pnpm convex:jwks:sync 2>&1 | tail -3 | grep -q "synced"; then
-  echo "   ⚠️  Standard sync failed — applying workaround (extract via auth:getLatestJwks)"
-  # Workaround for known upstream bug (see KNOWN_ISSUES.md #3)
-  JWKS_RAW=$(pnpm exec convex run auth:getLatestJwks 2>/dev/null)
-  JWKS_VALUE=$(node -e "process.stdout.write(JSON.parse(process.argv[1]))" "$JWKS_RAW")
-  pnpm exec convex env set JWKS "$JWKS_VALUE" >/dev/null
-  echo "   ✓ JWKS set via workaround"
-fi
+JWKS_LOG="/tmp/albo-jwks-$$.log"
+(
+  pnpm convex:jwks:sync >"$JWKS_LOG" 2>&1
+  if ! grep -q "synced" "$JWKS_LOG"; then
+    # Workaround for known upstream bug (see KNOWN_ISSUES.md #3)
+    JWKS_RAW=$(pnpm exec convex run auth:getLatestJwks 2>/dev/null)
+    JWKS_VALUE=$(node -e "process.stdout.write(JSON.parse(process.argv[1]))" "$JWKS_RAW")
+    pnpm exec convex env set JWKS "$JWKS_VALUE" >/dev/null 2>&1
+    echo "applied workaround" >>"$JWKS_LOG"
+  fi
+) &
+spin $! "generating and pushing JWT signing keys"
+rm -f "$JWKS_LOG"
 
 # --- Step 9: Optional API keys -----------------------------------------------
 
@@ -266,8 +280,13 @@ fi
 
 # --- Step 10: Final readiness check ------------------------------------------
 
-echo "→ [10/14] Running deploy:doctor (warnings about netlify/git remote are OK)"
-pnpm run deploy:doctor 2>&1 | tail -15 || true
+echo "→ [10/14] Running deploy:doctor (final readiness check)"
+DOCTOR_LOG="/tmp/albo-doctor-$$.log"
+pnpm run deploy:doctor >"$DOCTOR_LOG" 2>&1 &
+spin $! "verifying tooling, env vars, JWKS, secrets"
+# Show the doctor summary (✅/❌/⚠️ checks) but skip the verbose prelude
+grep -E "^(✅|❌|⚠️)" "$DOCTOR_LOG" | head -20 | sed 's/^/   /'
+rm -f "$DOCTOR_LOG"
 
 # --- Step 11: Initial commit (skipping hooks for bootstrap speed) ------------
 
