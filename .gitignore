@@ -46,3 +46,7 @@ cdk.context.json
 
 
 .dr.env.local
+
+# Local temp output (e.g. better-auth:generate-schema writes to $TMPDIR)
+tmp/
+var/
