@@ -327,6 +327,40 @@ B. Dans `src/lib/server/csp.server.ts`, ajouter `https://fonts.googleapis.com` d
 
 ---
 
+## #16 — `getaddrinfo ENOTFOUND` sur `*.convex.site` quand le résolveur DNS macOS est en IPv6
+
+**Découvert** : 2026-05-09
+
+**Symptôme** : pendant un signup ou une requête auth, le serveur TanStack Start crashe en boucle avec :
+```
+TypeError: fetch failed
+  cause: Error: getaddrinfo ENOTFOUND next-jellyfish-80.eu-west-1.convex.site
+    code: 'ENOTFOUND', syscall: 'getaddrinfo'
+  at proxyAuthRequest (src/features/auth/server/convex-better-auth-react-start.ts:119:20)
+```
+
+Pourtant `dig`, `host`, `dscacheutil -q host` résolvent le nom correctement. Et le navigateur ouvre l'URL sans souci.
+
+**Root cause** : sur certains setup macOS (notamment Free, Bouygues, et d'autres ISP français), le DNS principal du système est en **IPv6 uniquement** (genre `2a01:cb08:...`). Convex publie ses noms via Cloudflare avec des records IPv6 ET IPv4. Node.js (`undici` en interne) fait `getaddrinfo` en mode async, et dans ce contexte l'AAAA lookup peut renvoyer ENOTFOUND même quand le système synchrone résout bien.
+
+C'est un classique bug Node + IPv6-only DNS, documenté côté Node : https://github.com/nodejs/node/issues/40537
+
+**Fix appliqué dans le fork** : ajouter `--dns-result-order=ipv4first` au `NODE_OPTIONS` du script `dev` dans `package.json` :
+```json
+"dev": "concurrently -n vite,convex -c blue,green \"NODE_OPTIONS='--import ./instrument.server.mjs --dns-result-order=ipv4first' vite dev\" \"pnpm exec convex dev\"",
+```
+
+Cela force Node à essayer IPv4 d'abord, ce qui contourne le bug.
+
+**Manual fix** :
+```bash
+NODE_OPTIONS="--dns-result-order=ipv4first" pnpm dev
+```
+
+**Pas un bug Convex ni Better Auth** — purement un quirk Node.js × IPv6-only DNS. Le fix est sans impact sur les setups en IPv4 (ils continuent de marcher pareil).
+
+---
+
 ## Comment ajouter une nouvelle entrée
 
 Quand tu rencontres un bug pendant un bootstrap d'un projet client :

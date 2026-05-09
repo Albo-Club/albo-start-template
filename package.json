@@ -25,7 +25,7 @@
   "type": "module",
   "sideEffects": false,
   "scripts": {
-    "dev": "concurrently -n vite,convex -c blue,green \"NODE_OPTIONS='--import ./instrument.server.mjs' vite dev\" \"pnpm exec convex dev\"",
+    "dev": "concurrently -n vite,convex -c blue,green \"NODE_OPTIONS='--import ./instrument.server.mjs --dns-result-order=ipv4first' vite dev\" \"pnpm exec convex dev\"",
     "dev:docker": "tsx scripts/dev-full.ts",
     "build": "vite build",
     "start": "node --import ./instrument.server.mjs ./scripts/start-server.mjs",
