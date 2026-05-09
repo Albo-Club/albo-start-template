@@ -7,6 +7,7 @@ import {
 import { getRecentStepUpWindowMs } from '../src/lib/server/security-config.server';
 import { evaluateAuthPolicy } from '../src/lib/shared/auth-policy';
 import { isEmailVerificationRequiredForUser } from '../src/lib/shared/email-verification';
+import { ALWAYS_ON_REGULATED_BASELINE } from '../src/lib/shared/security-baseline';
 import type { OnboardingStatus } from '../src/lib/shared/onboarding';
 import { assertUserId } from '../src/lib/shared/user-id';
 import { components, internal } from './_generated/api';
@@ -1189,7 +1190,9 @@ export const getCurrentUserProfile = query({
         createdAt,
         updatedAt: toTimestampOrFallback(authUser.updatedAt, 0),
         mfaEnabled,
-        mfaRequired: true,
+        // Albo override (KNOWN_ISSUES #14) — drive from baseline so the email-only
+        // signup flow doesn't get bumped to /two-factor without enrollment.
+        mfaRequired: ALWAYS_ON_REGULATED_BASELINE.requireMfaOrPasskey,
         requiresMfaSetup: authPolicy.requiresMfaSetup,
         recentStepUpAt: authPolicy.stepUp.verifiedAt,
         recentStepUpValidUntil: authPolicy.stepUp.validUntil,

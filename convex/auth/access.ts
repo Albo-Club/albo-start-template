@@ -24,6 +24,7 @@ import {
   type StepUpRequirement,
 } from '../../src/lib/shared/auth-policy';
 import { isEmailVerificationRequiredForUser } from '../../src/lib/shared/email-verification';
+import { ALWAYS_ON_REGULATED_BASELINE } from '../../src/lib/shared/security-baseline';
 import { assertUserId } from '../../src/lib/shared/user-id';
 import { components, internal } from '../_generated/api';
 import type { Doc } from '../_generated/dataModel';
@@ -385,6 +386,13 @@ function getMfaRequirementReason(input: {
   mfaEnrolled: boolean;
   sessionMfaSatisfied: boolean;
 }): string | null {
+  // Albo override (KNOWN_ISSUES #14): short-circuit when the deployment
+  // baseline doesn't enforce MFA, so the data plane stops throwing
+  // MFA_REQUIRED for users who signed up with email + password only.
+  if (!ALWAYS_ON_REGULATED_BASELINE.requireMfaOrPasskey) {
+    return null;
+  }
+
   if (!input.mfaEnrolled) {
     return 'Multi-factor authentication setup is required';
   }
@@ -959,7 +967,11 @@ async function buildOrganizationPermissionDecision(
       enterpriseSatisfied: enterpriseAccess.allowed,
       enterpriseSatisfactionPath: enterpriseAccess.satisfactionPath,
       enterpriseStatus: enterpriseAccess.status,
-      mfaSatisfied: !authPolicy.requiresMfaSetup && isCurrentSessionMfaSatisfied(user),
+      // Albo override (KNOWN_ISSUES #14) — when the baseline doesn't enforce MFA,
+      // org-permission MFA gate always passes. Otherwise upstream behavior.
+      mfaSatisfied:
+        !ALWAYS_ON_REGULATED_BASELINE.requireMfaOrPasskey ||
+        (!authPolicy.requiresMfaSetup && isCurrentSessionMfaSatisfied(user)),
       recentStepUpSatisfied: stepUpEvaluation.required ? stepUpEvaluation.satisfied : true,
       supportGrantId: enterpriseAccess.supportGrant?.id ?? null,
       supportGrantScope: enterpriseAccess.supportGrant?.scope ?? null,
@@ -1255,7 +1267,8 @@ export async function buildCurrentUserProfile(
     createdAt,
     updatedAt: toMillis(user.authUser.updatedAt),
     mfaEnabled,
-    mfaRequired: true,
+    // Albo override (KNOWN_ISSUES #14) — drive from baseline, see auth-policy.ts.
+    mfaRequired: ALWAYS_ON_REGULATED_BASELINE.requireMfaOrPasskey,
     requiresMfaSetup: authPolicy.requiresMfaSetup,
     recentStepUpAt: compatibilityClaim?.verifiedAt ?? null,
     recentStepUpValidUntil: compatibilityClaim?.expiresAt ?? null,

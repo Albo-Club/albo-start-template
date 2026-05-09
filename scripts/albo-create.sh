@@ -142,10 +142,30 @@ else
     OWNER=$(gh api user --jq '.login')
   fi
 
-  gh repo create "$OWNER/$PROJECT_NAME" \
+  # Pre-flight: detect already-existing repo (e.g. user re-running after a
+  # previous failed bootstrap) and abort with an explicit recovery message
+  # instead of dying inside `gh repo create` with a cryptic "Name already exists".
+  if gh repo view "$OWNER/$PROJECT_NAME" >/dev/null 2>&1; then
+    echo ""
+    echo "❌ $OWNER/$PROJECT_NAME already exists on GitHub."
+    echo "   Either pick another name, or delete it first:"
+    echo "      gh repo delete $OWNER/$PROJECT_NAME --yes"
+    echo "   Then re-run this script."
+    exit 1
+  fi
+
+  GH_LOG="/tmp/albo-gh-$$.log"
+  if ! gh repo create "$OWNER/$PROJECT_NAME" \
     --private \
     --template "Albo-Club/albo-start-template" \
-    --clone
+    --clone 2>&1 | tee "$GH_LOG"; then
+    echo ""
+    echo "❌ Failed to create $OWNER/$PROJECT_NAME on GitHub. Last lines:"
+    tail -10 "$GH_LOG" | sed 's/^/   /'
+    rm -f "$GH_LOG"
+    exit 1
+  fi
+  rm -f "$GH_LOG"
 
   # gh creates in CWD. Move into Albo dir if not already there.
   if [[ ! -d "$TARGET_DIR" ]]; then

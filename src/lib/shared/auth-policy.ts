@@ -1,3 +1,5 @@
+import { ALWAYS_ON_REGULATED_BASELINE } from './security-baseline';
+
 export const STEP_UP_REQUIREMENTS = {
   accountEmailChange: 'account_email_change',
   auditExport: 'audit_export',
@@ -284,7 +286,11 @@ export function evaluateAuthPolicy(input: {
   const now = input.now ?? Date.now();
 
   return {
-    requiresMfaSetup: !input.assurance.mfaEnabled,
+    // Albo override (KNOWN_ISSUES #14): only mark MFA as required when the
+    // deployment baseline says so. Otherwise email+password signup is enough
+    // and users can optionally enroll a passkey/TOTP later from /profile.
+    requiresMfaSetup:
+      ALWAYS_ON_REGULATED_BASELINE.requireMfaOrPasskey && !input.assurance.mfaEnabled,
     stepUp: evaluateStepUpRequirement({
       assurance: input.assurance,
       now,

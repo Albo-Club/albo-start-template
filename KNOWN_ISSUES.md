@@ -261,6 +261,33 @@ pnpm exec convex ai-files install
 
 ---
 
+## #14 — 2FA forcée au signup malgré le baseline relaxé
+
+**Découvert** : 2026-05-09
+**Symptôme** : signup email + password fonctionne, l'email de vérification arrive bien (Resend OK), mais après avoir cliqué sur le lien de vérif :
+- soit la page `/account-setup` reste bloquée sur "set up MFA" sans laisser entrer
+- soit redirect direct sur `/two-factor` ("Please enter your one-time password")
+
+…alors que le user n'a setupé **aucun TOTP, aucune passkey**. Impossible d'entrer dans `/app`.
+
+**Root cause** : Le précédent fix #11 a flippé `ALWAYS_ON_REGULATED_BASELINE.requireMfaOrPasskey: false`, mais ce flag n'était utilisé que pour la posture compliance + la création d'organizations. Cinq endroits du code hardcodaient encore `mfaRequired: true` ou `requiresMfaSetup: !mfaEnabled` sans regarder le baseline :
+
+| # | Fichier | Ligne | Effet |
+|---|---------|-------|-------|
+| 1 | `src/lib/shared/auth-policy.ts` | 287 | `requiresMfaSetup` toujours `true` pour les nouveaux users |
+| 2 | `convex/users.ts` | 1192 | `mfaRequired: true` hardcodé (fallback) |
+| 3 | `convex/auth/access.ts` | 1258 | `mfaRequired: true` hardcodé (happy path) |
+| 4 | `convex/auth/access.ts` | 384-397 | `getMfaRequirementReason` → toutes les Convex queries throw `MFA_REQUIRED` |
+| 5 | `convex/auth/access.ts` | 962 | `mfaSatisfied` → `requireOrganizationPermission` block tout |
+
+**Fix appliqué dans le fork** : tout rebrancher sur `ALWAYS_ON_REGULATED_BASELINE.requireMfaOrPasskey`. Quand le flag est `false`, 0 enforcement MFA côté client ET serveur. Quand `true` (client healthcare/HIPAA), comportement upstream restauré sans modif supplémentaire.
+
+**Manual fix** : éditer les 5 endroits ci-dessus pour gate sur le baseline. Voir le commit qui ferme cette issue (l'edit pattern est trivial : remplacer `true` par `ALWAYS_ON_REGULATED_BASELINE.requireMfaOrPasskey` et ajouter une short-circuit `if (!ALWAYS_ON_REGULATED_BASELINE.requireMfaOrPasskey) return null` dans `getMfaRequirementReason`).
+
+**Pour un projet client compliance-heavy** (healthcare, finance régulée) : flip `requireMfaOrPasskey: true` dans `src/lib/shared/security-baseline.ts` au début du projet. Tout le enforcement upstream se réactive automatiquement.
+
+---
+
 ## Comment ajouter une nouvelle entrée
 
 Quand tu rencontres un bug pendant un bootstrap d'un projet client :
