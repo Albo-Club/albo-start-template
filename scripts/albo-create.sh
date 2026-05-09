@@ -74,7 +74,7 @@ echo ""
 
 echo "→ [1/14] Preflight checks"
 
-for cmd in gh pnpm node; do
+for cmd in gh pnpm node curl; do
   if ! command -v "$cmd" >/dev/null; then
     echo "❌ Missing required command: $cmd"
     echo "   Install with: brew install $cmd"
@@ -89,6 +89,18 @@ fi
 
 if ! gh auth status >/dev/null 2>&1; then
   echo "❌ gh not authenticated. Run: gh auth login"
+  exit 1
+fi
+
+# Detect stale dev servers on port 3000 (common cause of mysterious SIGTERMs).
+# See KNOWN_ISSUES.md #13 — leftover `pnpm dev` from a previous bootstrap will
+# crash the new one with "concurrently … exited with code SIGTERM".
+if lsof -ti :3000 >/dev/null 2>&1; then
+  STALE_PIDS=$(lsof -ti :3000 2>/dev/null | tr '\n' ' ')
+  echo "⚠️  Port 3000 is already in use by PID(s): $STALE_PIDS"
+  echo "   This is usually a leftover 'pnpm dev' from a previous bootstrap."
+  echo "   To kill them and continue: kill $STALE_PIDS && rerun this script."
+  echo "   Aborting to avoid an unfixable SIGTERM mid-script."
   exit 1
 fi
 
@@ -153,13 +165,6 @@ rm -f "$PNPM_LOG"
 # --- Step 4: Provision Convex deployment -------------------------------------
 
 echo "→ [4/14] Provisioning Convex dev deployment"
-echo ""
-echo "  ⚠️  Convex CLI peut te demander 2 questions interactives :"
-echo "     1. 'Where should this dev deployment run?' → Enter (Europe par défaut)"
-echo "     2. 'Set up Convex AI files? (Y/n)' → Y (ou juste Enter)"
-echo "     (Si tu set ta région par défaut dans https://dashboard.convex.dev/t/<team>/settings,"
-echo "      tu n'auras plus jamais ce premier prompt sur tes futurs projets.)"
-echo ""
 
 # Override with CONVEX_TEAM env var if you have multiple teams and want to force one.
 TEAM_FLAG=""
@@ -168,18 +173,26 @@ if [[ -n "${CONVEX_TEAM:-}" ]]; then
   echo "  Using team override: $CONVEX_TEAM"
 fi
 
-# IMPORTANT: do NOT capture output with $(...) — it disables Convex CLI's
-# interactive prompts (Ink-based TUI hides itself when stdout is piped).
-# Stream live so user can answer team prompts if needed. Use tee for logging.
+# We redirect stdin from /dev/null so the Convex CLI sees no TTY:
+#   • Region prompt is skipped → uses team default region (set this once on the
+#     dashboard at https://dashboard.convex.dev/t/<team>/settings — pick Europe).
+#   • AI files prompt is skipped → we install them explicitly in step 4b below.
+# stdout/stderr stay attached so progress logs ("Created project…") still display.
+# See KNOWN_ISSUES.md #13.
 CONVEX_LOG="/tmp/albo-create-convex-$$.log"
 set +e
 pnpm exec convex dev --once \
   --configure new \
   $TEAM_FLAG \
   --project "$PROJECT_NAME" \
-  --dev-deployment cloud 2>&1 | tee "$CONVEX_LOG"
-CONVEX_EXIT=${PIPESTATUS[0]}
+  --dev-deployment cloud </dev/null >"$CONVEX_LOG" 2>&1 &
+spin $! "creating project + provisioning deployment (~30s, no prompts)"
+CONVEX_EXIT=$?
 set -e
+
+# Surface the important lines so user knows what just happened
+grep -E "Created project|client URL|HTTP actions URL|deployment|Tip:" "$CONVEX_LOG" \
+  | head -8 | sed 's/^/   /' || true
 
 # Detect known errors and abort cleanly
 if grep -q "Team .* not found" "$CONVEX_LOG"; then
@@ -196,12 +209,35 @@ fi
 if ! grep -q "^CONVEX_DEPLOYMENT=" .env.local 2>/dev/null; then
   echo ""
   echo "❌ Convex provisioning failed — no CONVEX_DEPLOYMENT in .env.local"
-  echo "   See the output above for the real error."
-  rm -f "$CONVEX_LOG"
+  echo "   See the log: $CONVEX_LOG"
+  echo "   Last 20 lines:"
+  tail -20 "$CONVEX_LOG" | sed 's/^/   /'
   exit 1
 fi
+
+# Detect non-Europe region and warn (defaultRegion not set on team)
+if grep -q "configure a default region" "$CONVEX_LOG"; then
+  echo ""
+  echo "  ⚠️  No team default region set — Convex provisioned in its server default (likely US)."
+  TEAM_HINT=$(grep -oE "https://dashboard.convex.dev/t/[^/]+/settings" "$CONVEX_LOG" | head -1)
+  if [[ -n "$TEAM_HINT" ]]; then
+    echo "     Set Europe as default once at: $TEAM_HINT"
+  else
+    echo "     Set Europe as default once at: https://dashboard.convex.dev/t/<your-team>/settings"
+  fi
+  echo "     All future projects will then auto-use Europe (no prompt, no API call)."
+fi
+
 rm -f "$CONVEX_LOG"
 echo "  ✓ Convex deployment provisioned"
+
+# --- Step 4b: Install Convex AI files (non-interactive) ----------------------
+# We skipped the prompt by making stdin /dev/null, so install AI files explicitly.
+# This is idempotent (safe to re-run). See KNOWN_ISSUES.md #13.
+AI_LOG="/tmp/albo-ai-$$.log"
+pnpm exec convex ai-files install >"$AI_LOG" 2>&1 &
+spin $! "installing Convex AI files (guidelines.md, AGENTS.md, agent skills)"
+rm -f "$AI_LOG"
 
 # --- Step 5: Generate Better Auth secrets ------------------------------------
 
@@ -312,13 +348,31 @@ fi
 echo "→ [13/14] Starting dev server (Vite + Convex in parallel)"
 echo "  ⏳ Booting — this takes ~10-15 seconds..."
 
+# Re-check port 3000 isn't taken by something that started during the bootstrap
+if lsof -ti :3000 >/dev/null 2>&1; then
+  echo "❌ Port 3000 was free at preflight but is now in use. Something else grabbed it."
+  echo "   PID(s): $(lsof -ti :3000 | tr '\n' ' ')"
+  echo "   Kill them and run 'pnpm dev' from $TARGET_DIR yourself."
+  exit 1
+fi
+
 DEV_LOG="/tmp/albo-dev-$$.log"
 pnpm dev >"$DEV_LOG" 2>&1 &
 DEV_PID=$!
 
-# Wait for Vite to respond on port 3000 (max 60s)
+# Wait for Vite to respond on port 3000 (max 90s — Convex first-push can be slow)
 READY=0
-for i in $(seq 1 60); do
+for i in $(seq 1 90); do
+  # If pnpm dev died, surface the error immediately instead of waiting 90s
+  if ! kill -0 "$DEV_PID" 2>/dev/null; then
+    echo ""
+    echo "❌ pnpm dev exited early. Tail of dev server log:"
+    tail -30 "$DEV_LOG" | sed 's/^/   /'
+    echo ""
+    echo "   The bootstrap finished (repo + Convex are set up) but the dev server"
+    echo "   crashed on startup. Try 'cd $TARGET_DIR && pnpm dev' manually."
+    exit 1
+  fi
   if curl -sf -o /dev/null --max-time 1 http://localhost:3000/ 2>/dev/null; then
     READY=1
     break
@@ -330,9 +384,9 @@ printf "\n"
 
 if [[ "$READY" -eq 0 ]]; then
   echo ""
-  echo "⚠️  Dev server didn't respond on http://localhost:3000 within 60s."
+  echo "⚠️  Dev server didn't respond on http://localhost:3000 within 90s."
   echo "   Tail of dev server log:"
-  tail -20 "$DEV_LOG"
+  tail -20 "$DEV_LOG" | sed 's/^/   /'
   echo ""
   echo "   Continuing anyway — the server may still come up. Logs streaming below."
 fi

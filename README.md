@@ -1,4 +1,87 @@
-# TanStack Start Template
+# Albo Start Template
+
+A production-ready full-stack TypeScript template that bootstraps a deployable SaaS in under 5 minutes — auth, real-time DB, transactional emails, AI chat, role-based admin, all wired up.
+
+Forked from [`dyeoman2/tanstack-start-template`](https://github.com/dyeoman2/tanstack-start-template) with upstream bugs pre-fixed (see [`KNOWN_ISSUES.md`](./KNOWN_ISSUES.md)) and a one-shot bootstrap script that takes you from `git clone` to `localhost:3000` ready.
+
+## ⚡ One-command bootstrap
+
+You don't need to know what Convex, Better Auth, or JWKS are. Run one command:
+
+```bash
+bash <(curl -sSL https://raw.githubusercontent.com/Albo-Club/albo-start-template/main/scripts/albo-create.sh) my-app-name
+```
+
+What happens automatically (no prompts, ~5 minutes):
+
+1. Creates a private GitHub repo from this template (under your account if you're external, under `Albo-Club` if you're an Albo team member)
+2. Clones into `~/Documents/Albo/my-app-name`
+3. Installs dependencies
+4. Provisions a Convex dev deployment (region taken from your team default — see one-time setup below)
+5. Installs Convex AI files (guidelines, `AGENTS.md`, agent skills) automatically
+6. Generates Better Auth secrets + JWKS, pushes them to Convex
+7. Pushes auth/db functions, syncs JWKS, runs deploy:doctor
+8. Optionally takes your `RESEND_API_KEY` / `ANTHROPIC_API_KEY` (press Enter to skip)
+9. Initial commit + push (skipping pre-commit/pre-push hooks for the bootstrap commit only)
+10. Starts `pnpm dev`, waits for `localhost:3000` to respond, opens browser
+
+You sign up with email + password, you're in.
+
+### Prerequisites (one time per machine)
+
+```bash
+brew install gh pnpm node
+gh auth login
+```
+
+### One-time Convex team default region
+
+Convex doesn't expose a `--region` flag on `convex dev`. To avoid the region-selector prompt forever, set your team default once:
+
+> https://dashboard.convex.dev/t/`<your-team>`/settings → **Default region** → **Europe** (or whatever you want)
+
+After that, every project this script bootstraps for you uses that region silently.
+
+## Two modes — Albo vs external
+
+The script auto-detects whether you're a member of the GitHub `Albo-Club` org and switches behavior:
+
+| | **Albo mode** (Albo-Club member) | **Test mode** (everyone else) |
+|---|---|---|
+| New repo created under | `Albo-Club/<name>` | `<your-github-username>/<name>` |
+| Default email sender | `noreply@alboteam.com` (Resend verified) | `onboarding@resend.dev` (Resend test domain) |
+| Convex project on | Your Convex team (you'll be prompted to log in if needed) | Your Convex team |
+| Brand CSS | Albo charte applied (#CD4D28 orange, Inter + Playfair fonts, 9px radius) | Same defaults — override `src/styles/albo-brand.css` if you want yours |
+
+You can force a mode with `--mode albo` or `--mode test`.
+
+> **Important for external users:** the script never touches Albo infrastructure. Your project lives entirely on **your** GitHub, **your** Convex team, **your** Resend account. The only Albo asset is the template repo itself, which is open-source.
+
+## What's in the box
+
+- **Stack**: TanStack Start (Vite + React 19 + SSR, file-based routing) + Convex (DB + real-time + functions) + Better Auth + shadcn/ui + Tailwind v4 + Resend + `@convex-dev/agent` (AI chat) + `@convex-dev/rate-limiter`
+- **Auth**: email + password (default), magic links, passkeys, Google OAuth — all toggleable per organization
+- **Compliance baseline**: HIPAA/SOC2-friendly audit ledger, regulated-org policy schema, step-up auth, support-access approval flow (relaxed by default — flip flags in `src/lib/shared/security-baseline.ts` for healthcare-grade clients)
+- **Admin dashboard**: user/org/role management, system stats, data export, email previews
+- **Open-source** under MIT — fork it, rename it, ship it
+
+## Manual setup (if you don't want the script)
+
+If you'd rather wire things yourself without the bootstrap script, the upstream-style flow still works:
+
+```bash
+git clone https://github.com/Albo-Club/albo-start-template.git my-app
+cd my-app
+pnpm install
+pnpm run setup:dev   # interactive Convex setup
+pnpm dev
+```
+
+You'll hit the upstream bugs documented in [`KNOWN_ISSUES.md`](./KNOWN_ISSUES.md) — the script applies all those fixes automatically; manually you'll fix them as you go.
+
+---
+
+# TanStack Start Template (upstream README)
 
 A TanStack Start template built with TanStack Start, featuring modern full-stack TypeScript architecture with end-to-end type safety, authentication, real-time data, and a production-ready chat experience.
 

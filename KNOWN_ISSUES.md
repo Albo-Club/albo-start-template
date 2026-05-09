@@ -228,6 +228,39 @@ WARN  Unsupported engine: wanted: {"node":">=24"} (current: {"node":"v22.19.0",.
 
 ---
 
+## #13 — Convex CLI prompts forcent une interaction au bootstrap
+
+**Découvert** : 2026-05-08
+**Symptôme** : `convex dev --once --configure new` affiche 2 prompts interactifs même quand on veut un bootstrap 100% automatisé :
+
+1. `Where should this dev deployment run?` (region selector — US/Europe/etc.)
+2. `Set up Convex AI files? (guidelines, AGENTS.md, agent skills) [Y/n]`
+
+Et en plus, si on a un autre `pnpm dev` qui tourne dans un autre terminal sur port 3000, son `concurrently` peut crasher avec `[convex] pnpm exec convex dev exited with code SIGTERM` au moment où le nouveau bootstrap essaye de toucher la config Convex partagée.
+
+**Root cause** :
+- Convex CLI v1.36+ utilise `process.stdin.isTTY` pour décider d'afficher les prompts. Quand stdin est un vrai TTY → prompts. Quand stdin est `/dev/null` → skip.
+- Pour la région : si stdin pas TTY ET `team.defaultRegion` non set → fallback serveur (US). Si team.defaultRegion set → utilisé silencieusement.
+- Pour les AI files : si stdin pas TTY → skip total (pas de fichiers générés). On doit donc les installer explicitement après.
+- Pour le SIGTERM : un `pnpm dev` orphelin tient le port 3000 et fait crasher le nouveau bootstrap. Hard à diagnostiquer parce que le message est cryptique.
+
+**Fix appliqué dans le fork** (`scripts/albo-create.sh`) :
+1. Étape 1 (preflight) : `lsof -ti :3000` détecte un dev server orphelin, abort proprement avec instruction `kill <PID>`.
+2. Étape 4 : `convex dev --once … </dev/null` redirige stdin → CLI voit pas de TTY → 0 prompt.
+3. Étape 4b (nouveau) : `convex ai-files install` installe les AI files non-interactivement après coup.
+4. Détection région : `grep "configure a default region" "$CONVEX_LOG"` → si trouvé, le team n'a pas de défaut, on log une URL pour la setter une fois.
+
+**Manual fix** :
+```bash
+pnpm exec convex dev --once --configure new --project my-app --dev-deployment cloud </dev/null
+pnpm exec convex ai-files install
+# Puis : aller sur https://dashboard.convex.dev/t/<team>/settings et set "Default region" = Europe
+```
+
+**Pourquoi pas un flag CLI** : Convex 1.38 n'a pas de flag `--region` sur `convex dev`, ni de flag `--no-ai-files` ou `--yes`. L'astuce stdin est la voie officielle pour bypass les prompts (comme tous les CLI Ink-based : git, gh, etc. utilisent le même pattern).
+
+---
+
 ## Comment ajouter une nouvelle entrée
 
 Quand tu rencontres un bug pendant un bootstrap d'un projet client :
