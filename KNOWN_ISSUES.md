@@ -288,6 +288,45 @@ pnpm exec convex ai-files install
 
 ---
 
+## #15 — `bootstrapSignedUpUserServerFn` throw UNAUTHENTICATED juste après signup + CSP bloque Google Fonts
+
+**Découvert** : 2026-05-09 (après le fix #14 quand le bug a cessé d'être masqué par le redirect /two-factor)
+
+**Symptôme A — bootstrap UNAUTHENTICATED** : signup email + password → message "Your account may have been created, but setup did not finish cleanly" → redirect sur /login. Logs Convex :
+```
+[CONVEX A(users:bootstrapCurrentUserContext)] Uncaught ConvexError: {"code":"UNAUTHENTICATED","message":"Not authenticated"}
+    at getCurrentSetupAuthUserFromActionOrThrow (../../convex/auth.ts:690:47)
+```
+
+**Symptôme B — CSP violations sur Google Fonts** : pas bloquant mais pollue les logs avec :
+```
+{"event":"csp_violation","blockedURL":"https://fonts.googleapis.com/css2?family=Inter...","violatedDirective":"style-src-elem"}
+```
+
+**Root cause A** : Better Auth shared options ont `emailAndPassword.requireEmailVerification: true` + `emailAndPassword.autoSignIn: false`. Donc juste après `authClient.signUp.email()`, **il n'y a pas de session** — Better Auth attend que l'email soit vérifié avant de créer une session. Le `bootstrapSignedUpUserServerFn` du template upstream appelait Convex via `convexAuthReactStart.fetchAuthAction(api.users.bootstrapCurrentUserContext, {})` qui dépend du cookie de session pour récupérer un JWT Convex via `/api/auth/convex/token`. Pas de cookie → pas de JWT → action throw UNAUTHENTICATED.
+
+Le bug a été masqué pendant longtemps parce que `requiresMfaVerification` (cf #14) renvoyait toujours `true` et redirigeait sur `/two-factor` AVANT qu'on voie l'erreur de bootstrap. Une fois #14 fixé, le vrai bug remonte.
+
+**Root cause B** : `__root.tsx` charge Inter + Playfair Display via `<link rel="stylesheet">` depuis `fonts.googleapis.com` (déplacés depuis `albo-brand.css` lors du fix #10), mais la CSP `style-src 'self'` + `font-src 'self' data:` bloque ces domaines.
+
+**Fix appliqué dans le fork** :
+
+A. Dans `src/routes/register.tsx`, **ne plus appeler `bootstrapSignedUpUserServerFn`** après `signUp.email()`. Naviguer directement vers `/account-setup` (page verify-email). Le bootstrap se fera lazily à la première action server function qui en a besoin (`ensureCurrentUserContext`), une fois que l'utilisateur aura cliqué le lien email et que `autoSignInAfterVerification: true` aura créé une session.
+
+B. Dans `src/lib/server/csp.server.ts`, ajouter `https://fonts.googleapis.com` dans `style-src` et `https://fonts.gstatic.com` dans `font-src`.
+
+**Manual fix** :
+```ts
+// register.tsx — supprimer le try { bootstrapSignedUpUserServerFn(...) } catch {...}
+// après signUp.email(), naviguer directement vers /account-setup.
+
+// csp.server.ts — autoriser Google Fonts dans les directives style-src et font-src.
+```
+
+**Pourquoi ne pas plutôt fixer `bootstrapCurrentUserContext` pour accepter `authUserId` en paramètre** : ce serait un trou de sécurité (n'importe qui pourrait bootstrapper n'importe quel user). Mieux : laisser le flow d'auth Better Auth se dérouler, et bootstrapper lazily quand on a une vraie session.
+
+---
+
 ## Comment ajouter une nouvelle entrée
 
 Quand tu rencontres un bug pendant un bootstrap d'un projet client :

@@ -16,7 +16,6 @@ import {
   getAccountSetupHref,
   normalizeAppRedirectTarget,
 } from '~/features/auth/lib/account-setup-routing';
-import { bootstrapSignedUpUserServerFn } from '~/features/auth/server/user-management';
 import { validatePasswordComplexity } from '~/lib/shared/password-validation';
 
 export const Route = createFileRoute('/register')({
@@ -108,7 +107,7 @@ function RegisterPage() {
             ? undefined
             : getAccountSetupCallbackUrl(window.location.origin, { redirectTo });
 
-        const signUpResult = await authClient.signUp.email({
+        await authClient.signUp.email({
           email,
           password,
           name,
@@ -118,35 +117,25 @@ function RegisterPage() {
           },
         });
 
-        try {
-          await bootstrapSignedUpUserServerFn({
-            data: {
-              authUserId: signUpResult.user.id,
-              email: signUpResult.user.email,
-            },
-          });
-          if (typeof window !== 'undefined') {
-            window.location.assign(
-              getAccountSetupHref({
-                email,
-                redirectTo,
-              }),
-            );
-          }
-        } catch {
-          setIsCompletingSignup(false);
-          setError(
-            'Your account may have been created, but setup did not finish cleanly. Sign in with this email to resume account setup.',
+        // Albo override (KNOWN_ISSUES #15): the upstream template called
+        // bootstrapSignedUpUserServerFn here, but Better Auth is configured with
+        // autoSignIn: false + requireEmailVerification: true (sharedOptions.ts
+        // L1112-1114), so there's NO session immediately after signUp.email() —
+        // the bootstrap action throws UNAUTHENTICATED and the user is bounced
+        // to /login with a misleading error.
+        //
+        // Instead, send the user straight to /account-setup (verify-email stage).
+        // After they click the email link, autoSignInAfterVerification creates a
+        // session, and ensureCurrentUserContext is called on-demand by other
+        // server functions when actually needed.
+
+        if (typeof window !== 'undefined') {
+          window.location.assign(
+            getAccountSetupHref({
+              email,
+              redirectTo,
+            }),
           );
-          setTimeout(() => {
-            void navigate({
-              to: '/login',
-              search: {
-                email,
-                ...(redirectTo ? { redirectTo } : {}),
-              },
-            });
-          }, 1600);
         }
       } catch (error: unknown) {
         setIsCompletingSignup(false);

@@ -89,7 +89,10 @@ export function buildDocumentContentSecurityPolicy({
   ]);
 
   const imgSrc = unique(["'self'", 'data:', 'blob:']);
-  const fontSrc = unique(["'self'", 'data:']);
+  // Albo override (KNOWN_ISSUES #15): allow Google Fonts so the <link rel="stylesheet">
+  // tags in __root.tsx can load Inter + Playfair Display. Without these, browsers block
+  // the requests with style-src-elem / font-src violations.
+  const fontSrc = unique(["'self'", 'data:', 'https://fonts.gstatic.com']);
   const scriptSrcParts = ["'self'", `'nonce-${nonce}'`];
   if (allowUnsafeEval) {
     scriptSrcParts.push("'unsafe-eval'");
@@ -104,7 +107,9 @@ export function buildDocumentContentSecurityPolicy({
     `script-src ${scriptSrcParts.join(' ')}`,
     // react-remove-scroll (Radix Dialog / Sheet / AlertDialog) injects a fixed <style> for scroll lock;
     // allow that exact stylesheet via hash without opening all inline styles.
-    "style-src 'self' 'sha256-nzTgYzXYDNe6BAHiiI7NNlfK8n/auuOAhh2t92YvuXo='",
+    // Albo override (KNOWN_ISSUES #15): allow Google Fonts CSS so __root.tsx <link>
+    // tags resolve. The hash is for react-remove-scroll's runtime stylesheet.
+    "style-src 'self' 'sha256-nzTgYzXYDNe6BAHiiI7NNlfK8n/auuOAhh2t92YvuXo=' https://fonts.googleapis.com",
     // ACCEPTED RESIDUAL RISK: style-src-attr 'unsafe-inline' is required because
     // Radix UI (Dialog, Select, Dropdown, Navigation Menu, Tooltip) injects runtime
     // CSS custom properties (--radix-*) as inline style attributes computed from DOM
