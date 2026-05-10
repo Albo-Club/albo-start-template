@@ -1,4 +1,18 @@
-# Albo Start Template
+# Albo Start Template — Compliance-grade
+
+> ⚠️ **For most projects, use [`Albo-Club/albo-start-mvp`](https://github.com/Albo-Club/albo-start-mvp) instead.**
+>
+> This template is forked from `dyeoman2/tanstack-start-template` and targets **HIPAA / SOC2 / NIST-grade clients** (healthcare, regulated fintech). It ships 800+ files of compliance machinery: forced MFA + step-up auth, multi-tenant orgs with RBAC, audit ledger on everything, AWS S3 + Disaster Recovery, SCIM, enterprise SSO, etc.
+>
+> If you're building a regular MVP or solo prototype, the lighter [`albo-start-mvp`](https://github.com/Albo-Club/albo-start-mvp) (~45 files, AI chat sidebar built in, signup → /app in one click) will get you to production faster and with less debugging.
+>
+> | If you need... | Use |
+> |---|---|
+> | A quick MVP, prototype, or AI-first app | [`albo-start-mvp`](https://github.com/Albo-Club/albo-start-mvp) |
+> | Healthcare / fintech / regulated industries | this template |
+> | HIPAA/SOC2 audit ledger out of the box | this template |
+> | Multi-tenant orgs with RBAC at 4 levels | this template |
+> | Forced MFA, step-up auth, SCIM | this template |
 
 A production-ready full-stack TypeScript template that bootstraps a deployable SaaS in under 5 minutes — auth, real-time DB, transactional emails, AI chat, role-based admin, all wired up.
 

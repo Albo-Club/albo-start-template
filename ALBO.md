@@ -1,4 +1,6 @@
-# Albo Start Template
+# Albo Start Template — Compliance-grade
+
+> ⚠️ **Pour 90% des projets, utilise [`Albo-Club/albo-start-mvp`](https://github.com/Albo-Club/albo-start-mvp) à la place.** Ce template est dimensionné pour des clients régulés (HIPAA / SOC2 / NIST). Pour les MVPs rapides, l'AI-first MVP (45 fichiers, signup → /app en 1 clic, chat IA avec tool-calling sur tes data) est plus adapté. Lis [son README](https://github.com/Albo-Club/albo-start-mvp).
 
 Fork de [`dyeoman2/tanstack-start-template`](https://github.com/dyeoman2/tanstack-start-template) avec :
 
