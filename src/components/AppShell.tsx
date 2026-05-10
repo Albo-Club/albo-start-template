@@ -1,5 +1,5 @@
 import { Outlet, useLocation, useRouter } from '@tanstack/react-router';
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { AppNavigation } from '~/components/AppNavigation';
 import { useAuthContext } from '~/components/Providers';
 
@@ -15,44 +15,15 @@ const AUTH_ROUTES = new Set([
   '/verify-email-pending',
 ]);
 
-/**
- * Application shell component following TanStack Start best practices
- * Handles the main app layout with navigation and content area
- * Also manages router auth context updates
- */
 export function AppShell() {
   const location = useLocation();
   const router = useRouter();
   const { authContext } = useAuthContext();
-  const prevLocationRef = useRef<string | undefined>(undefined);
   const isAppRoute = location.pathname === '/app' || location.pathname.startsWith('/app/');
   const isAuthRoute =
     AUTH_ROUTES.has(location.pathname) ||
     AUTH_ROUTE_PREFIXES.some((prefix) => location.pathname.startsWith(prefix));
 
-  // Track navigation events with more detail
-  useEffect(() => {
-    const currentPath = location.pathname;
-    prevLocationRef.current = currentPath;
-  }, [location.pathname]);
-
-  // Listen for router navigation events
-  useEffect(() => {
-    const unsubscribeBeforeLoad = router.subscribe('onBeforeLoad', () => {
-      // Handle before load events if needed
-    });
-
-    const unsubscribeOnLoad = router.subscribe('onLoad', () => {
-      // Handle on load events if needed
-    });
-
-    return () => {
-      unsubscribeBeforeLoad();
-      unsubscribeOnLoad();
-    };
-  }, [router]);
-
-  // Update router context with current auth state for optimistic auth
   useEffect(() => {
     router.update({
       context: authContext,
